@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Search, Download } from 'lucide-react'
-import { searchWarga } from '@/services/wargaService'
+import { searchWarga, findKepalaKeluarga } from '@/services/wargaService'
 import { getDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
 import { getNomorSuratConfig, incrementCounter } from '@/services/nomorSuratService'
@@ -182,10 +182,18 @@ function WargaSection({ slot, placeholders, values, onChange }: { slot: string; 
     return age.toString()
   }
 
-  const handleSelect = (w: Warga) => {
+  const handleSelect = async (w: Warga) => {
     const rt = w.rt.padStart(3, '0')
     const rw = w.rw.padStart(3, '0')
-    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: `${w.alamat} RT ${rt} RW ${rw}`, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}` }
+
+    // Auto-lookup kepala keluarga by NO_KK
+    let kepalaKeluarga = ''
+    if (w.no_kk) {
+      const kk = await findKepalaKeluarga(w.no_kk)
+      if (kk) kepalaKeluarga = kk.nama
+    }
+
+    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: `${w.alamat} RT ${rt} RW ${rw}`, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}`, KEPALA_KELUARGA: kepalaKeluarga }
     for (const p of placeholders) { if (map[p.field]) onChange(p.token, map[p.field]) }
     setShowResults(false); setQuery('')
   }

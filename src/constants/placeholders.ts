@@ -11,7 +11,7 @@ export const WARGA_FIELDS = [
   'NIK', 'NAMA', 'JENIS_KELAMIN', 'TEMPAT_LAHIR', 'TANGGAL_LAHIR',
   'UMUR', 'AGAMA', 'STATUS', 'HUB_KELUARGA', 'PENDIDIKAN',
   'PEKERJAAN', 'NAMA_IBU', 'NAMA_AYAH', 'ALAMAT', 'RT', 'RW',
-  'NO_KK', 'ALAMAT_LENGKAP', 'TTL',
+  'NO_KK', 'ALAMAT_LENGKAP', 'TTL', 'KEPALA_KELUARGA',
 ] as const;
 
 export type WargaField = typeof WARGA_FIELDS[number];
@@ -31,6 +31,7 @@ export const DESA_PLACEHOLDERS: PlaceholderDefinition[] = [
   { token: 'TELEPON_DESA', kategori: 'desa', deskripsi: 'Telepon Desa', contoh: '(0233) 123456' },
   { token: 'EMAIL_DESA', kategori: 'desa', deskripsi: 'Email Desa', contoh: 'desa@gmail.com' },
   { token: 'ALAMAT_KANTOR_DESA', kategori: 'desa', deskripsi: 'Alamat Kantor Desa', contoh: 'Jl. Raya No. 1' },
+  { token: 'KOP_SURAT', kategori: 'desa', deskripsi: 'Gambar kop surat (image)', contoh: '(image)' },
 ];
 
 export const NOMOR_SURAT_PLACEHOLDERS: PlaceholderDefinition[] = [

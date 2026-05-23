@@ -1,18 +1,19 @@
 import { select, execute } from './db';
 import { v4 as uuid } from 'uuid';
 import { appConfigDir } from '@tauri-apps/api/path';
-import { exists, mkdir, readFile, writeFile, remove } from '@tauri-apps/plugin-fs';
+import { exists, mkdir, readFile, writeFile, remove, BaseDirectory } from '@tauri-apps/plugin-fs';
 import type { TemplateSurat, TemplateLabel } from '../types';
 import { detectPlaceholders, countWargaSlots } from '../utils/placeholderDetector';
 import JSZip from 'jszip';
 
-async function getTemplatesDir(): Promise<string> {
+const TEMPLATES_SUBDIR = 'templates';
+
+async function ensureTemplatesDir(): Promise<void> {
   const dir = await appConfigDir();
-  const templatesDir = `${dir}/templates`;
+  const templatesDir = `${dir}/${TEMPLATES_SUBDIR}`;
   if (!(await exists(templatesDir))) {
-    await mkdir(templatesDir, { recursive: true });
+    await mkdir(TEMPLATES_SUBDIR, { baseDir: BaseDirectory.AppConfig, recursive: true });
   }
-  return templatesDir;
 }
 
 export async function getAllTemplates(): Promise<TemplateSurat[]> {
@@ -37,10 +38,11 @@ export async function uploadTemplate(
 ): Promise<TemplateSurat> {
   const id = uuid();
   const filename = `${id}.docx`;
-  const dir = await getTemplatesDir();
-  const filePath = `${dir}/${filename}`;
+  await ensureTemplatesDir();
+  const filePath = `${TEMPLATES_SUBDIR}/${filename}`;
 
-  await writeFile(filePath, fileBytes);
+  // Write to AppConfig directory
+  await writeFile(filePath, fileBytes, { baseDir: BaseDirectory.AppConfig });
 
   const placeholders = await detectPlaceholdersFromDocx(fileBytes);
   const wargaCount = countWargaSlots(placeholders);
@@ -67,14 +69,14 @@ export async function updateTemplate(id: string, nama: string, deskripsi: string
 export async function deleteTemplate(id: string): Promise<void> {
   const template = await getTemplateById(id);
   if (template) {
-    try { await remove(template.file_path); } catch { /* ignore */ }
+    try { await remove(template.file_path, { baseDir: BaseDirectory.AppConfig }); } catch { /* ignore */ }
   }
   await execute('DELETE FROM template_labels WHERE template_id = $1', [id]);
   await execute('DELETE FROM templates WHERE id = $1', [id]);
 }
 
 export async function getTemplateBlob(filePath: string): Promise<Uint8Array> {
-  return await readFile(filePath);
+  return await readFile(filePath, { baseDir: BaseDirectory.AppConfig });
 }
 
 async function detectPlaceholdersFromDocx(fileBytes: Uint8Array): Promise<ReturnType<typeof detectPlaceholders>> {

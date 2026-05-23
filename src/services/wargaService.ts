@@ -63,3 +63,15 @@ export async function updateWarga(id: string, data: Partial<Omit<Warga, 'id' | '
     [data.no_kk, data.nik, data.nama, data.jenis_kelamin, data.tempat_lahir, data.tanggal_lahir, data.agama, data.status, data.hub_keluarga, data.pendidikan, data.pekerjaan, data.nama_ibu, data.nama_ayah, data.alamat, data.rt, data.rw, now, id]
   );
 }
+
+/**
+ * Find kepala keluarga (head of family) by NO_KK.
+ * Kepala keluarga = warga with same no_kk and hub_keluarga = 'Kepala Keluarga'
+ */
+export async function findKepalaKeluarga(noKk: string): Promise<Warga | null> {
+  const rows = await select<Warga>(
+    "SELECT * FROM warga WHERE no_kk = $1 AND hub_keluarga = 'Kepala Keluarga' LIMIT 1",
+    [noKk]
+  );
+  return rows.length > 0 ? rows[0] : null;
+}
