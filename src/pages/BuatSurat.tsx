@@ -43,7 +43,7 @@ export function BuatSurat() {
     const values: Record<string, string> = {}
     for (const p of detected) {
       if (p.kategori === 'desa' && dataDesa) {
-        const map: Record<string, string> = { DESA: dataDesa.desa, KECAMATAN: dataDesa.kecamatan, KABUPATEN: dataDesa.kabupaten, PROVINSI: dataDesa.provinsi, KODE_POS: dataDesa.kode_pos, TELEPON_DESA: dataDesa.telepon, EMAIL_DESA: dataDesa.email, ALAMAT_KANTOR_DESA: dataDesa.alamat_kantor }
+        const map: Record<string, string> = { DESA: dataDesa.desa, KECAMATAN: dataDesa.kecamatan, KABUPATEN: dataDesa.kabupaten, PROVINSI: dataDesa.provinsi, KODE_POS: dataDesa.kode_pos, TELEPON_DESA: dataDesa.telepon, EMAIL_DESA: dataDesa.email, ALAMAT_KANTOR_DESA: dataDesa.alamat_kantor, KOP_SURAT: dataDesa.kop_surat || '' }
         values[p.token] = map[p.field] || ''
       } else if (p.kategori === 'perangkat_desa' && p.slot) {
         const m = p.slot.match(/^PD(\d+)$/)

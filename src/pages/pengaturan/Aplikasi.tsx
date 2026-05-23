@@ -1,9 +1,18 @@
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/hooks/use-confirm'
 
 export function AplikasiPage() {
   const { confirm, ConfirmDialog } = useConfirm()
+  const [loginImage, setLoginImage] = useState<string | null>(null)
+
+  useEffect(() => {
+    const img = localStorage.getItem('aisura-login-image')
+    if (img) setLoginImage(img)
+  }, [])
+
   const handleBackup = async () => {
     try {
       const { exportBackup } = await import('@/services/backupService')
@@ -30,9 +39,53 @@ export function AplikasiPage() {
     } catch { alert('Gagal reset') }
   }
 
+  const handleUploadLoginImage = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const { readFile } = await import('@tauri-apps/plugin-fs')
+      const filePath = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg'] }], multiple: false })
+      if (!filePath) return
+      const bytes = await readFile(filePath as string)
+      const base64 = btoa(String.fromCharCode(...bytes))
+      const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
+      const mimeType = ext === 'jpg' ? 'jpeg' : ext
+      const dataUrl = `data:image/${mimeType};base64,${base64}`
+      localStorage.setItem('aisura-login-image', dataUrl)
+      setLoginImage(dataUrl)
+    } catch (err) { console.error(err) }
+  }
+
+  const handleRemoveLoginImage = () => {
+    localStorage.removeItem('aisura-login-image')
+    setLoginImage(null)
+  }
+
   return (
     <div className="space-y-4 max-w-lg">
       <h1 className="text-2xl font-bold tracking-tight">Aplikasi</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">Gambar Halaman Login</CardTitle>
+          <CardDescription>Ganti gambar ilustrasi di halaman login (PNG/JPG)</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {loginImage && (
+            <div className="border rounded-md p-2">
+              <img src={loginImage} alt="Login illustration" className="max-h-32 object-contain rounded" />
+            </div>
+          )}
+          {!loginImage && (
+            <div className="border rounded-md p-4 text-center text-sm text-muted-foreground">
+              Menggunakan gambar default
+            </div>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={handleUploadLoginImage}>Upload Gambar</Button>
+            {loginImage && <Button size="sm" variant="ghost" onClick={handleRemoveLoginImage}>Kembalikan Default</Button>}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
