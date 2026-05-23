@@ -65,7 +65,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
 
       {/* Form content - positioned on right, shifted closer to right edge */}
       <div className="relative z-10 flex min-h-svh items-center justify-end">
-        <div className="w-full sm:w-[40%] px-8 sm:pl-10 sm:pr-0 space-y-6 flex flex-col items-center">
+        <div className="w-full sm:w-[35%] px-8 sm:pl-8 sm:pr-0 space-y-6 flex flex-col items-center">
 
           {/* Desa identity (shown only if data exists) */}
           {dataDesa && (
@@ -85,8 +85,8 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
           {/* Logo App */}
           <div className="text-center">
             <span className="text-4xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
-              <span className="text-primary">AI</span>
-              <span className="text-foreground">Sura</span>
+              <span className="text-blue-600">AI</span>
+              <span className="text-black dark:text-white">Sura</span>
             </span>
             <p className="text-sm text-muted-foreground mt-1">Aplikasi Surat Otomatis Desa</p>
           </div>
