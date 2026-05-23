@@ -1,9 +1,13 @@
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Card } from '../components/ui/Card';
+import { Button } from '../components/ui/Button';
 import {
   DocumentDuplicateIcon,
   UsersIcon,
   ClockIcon,
+  DocumentPlusIcon,
+  ArrowUpTrayIcon,
 } from '@heroicons/react/24/outline';
 
 const container = {
@@ -16,7 +20,32 @@ const item = {
   show: { opacity: 1, y: 0 },
 };
 
-export function Dashboard() {
+interface DashboardProps {
+  onNavigate?: (page: string) => void;
+}
+
+export function Dashboard({ onNavigate }: DashboardProps) {
+  const [templateCount, setTemplateCount] = useState(0);
+  const [wargaCount, setWargaCount] = useState(0);
+  const [riwayatCount, setRiwayatCount] = useState(0);
+
+  useEffect(() => {
+    loadCounts();
+  }, []);
+
+  const loadCounts = async () => {
+    try {
+      const { getTemplateCount } = await import('../services/templateService');
+      const { getWargaCount } = await import('../services/wargaService');
+      const { getRiwayatCount } = await import('../services/riwayatService');
+      setTemplateCount(await getTemplateCount());
+      setWargaCount(await getWargaCount());
+      setRiwayatCount(await getRiwayatCount());
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div>
       <h1 className="text-xl font-semibold text-[var(--color-text-primary)] mb-4">Dashboard</h1>
@@ -35,7 +64,7 @@ export function Dashboard() {
               </div>
               <div>
                 <p className="text-xs text-[var(--color-text-secondary)]">Template Surat</p>
-                <p className="text-lg font-semibold text-[var(--color-text-primary)]">0</p>
+                <p className="text-lg font-semibold text-[var(--color-text-primary)]">{templateCount}</p>
               </div>
             </div>
           </Card>
@@ -49,7 +78,7 @@ export function Dashboard() {
               </div>
               <div>
                 <p className="text-xs text-[var(--color-text-secondary)]">Data Warga</p>
-                <p className="text-lg font-semibold text-[var(--color-text-primary)]">0</p>
+                <p className="text-lg font-semibold text-[var(--color-text-primary)]">{wargaCount}</p>
               </div>
             </div>
           </Card>
@@ -63,11 +92,29 @@ export function Dashboard() {
               </div>
               <div>
                 <p className="text-xs text-[var(--color-text-secondary)]">Surat Dibuat</p>
-                <p className="text-lg font-semibold text-[var(--color-text-primary)]">0</p>
+                <p className="text-lg font-semibold text-[var(--color-text-primary)]">{riwayatCount}</p>
               </div>
             </div>
           </Card>
         </motion.div>
+      </motion.div>
+
+      {/* Quick Actions */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4 }}
+        className="mt-4"
+      >
+        <h2 className="text-sm font-medium text-[var(--color-text-secondary)] mb-2">Aksi Cepat</h2>
+        <div className="flex gap-2">
+          <Button size="sm" onPress={() => onNavigate?.('buat-surat')}>
+            <DocumentPlusIcon className="w-3.5 h-3.5" /> Buat Surat
+          </Button>
+          <Button variant="secondary" size="sm" onPress={() => onNavigate?.('data-warga')}>
+            <ArrowUpTrayIcon className="w-3.5 h-3.5" /> Import Data Warga
+          </Button>
+        </div>
       </motion.div>
     </div>
   );

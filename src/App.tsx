@@ -76,7 +76,7 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard': return <Dashboard />;
+      case 'dashboard': return <Dashboard onNavigate={(p) => setCurrentPage(p as PageId)} />;
       case 'buat-surat': return <BuatSurat />;
       case 'template-surat': return <TemplateSuratPage />;
       case 'placeholder': return <PlaceholderPage />;
