@@ -81,6 +81,11 @@ export async function initDatabase(): Promise<Database> {
     )
   `);
 
+  // Migration: add prefix_surat column if missing (for existing databases)
+  try {
+    await db.execute(`ALTER TABLE templates ADD COLUMN prefix_surat TEXT DEFAULT ''`);
+  } catch { /* column already exists, ignore */ }
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS template_labels (
       id TEXT PRIMARY KEY,
