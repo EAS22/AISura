@@ -24,6 +24,7 @@ export function BuatSurat() {
   const [loading, setLoading] = useState(true)
   const [dataDesa, setDataDesa] = useState<DataDesa | null>(null)
   const [perangkatDesa, setPerangkatDesa] = useState<PerangkatDesa[]>([])
+  const [templateSearch, setTemplateSearch] = useState('')
 
   useEffect(() => { loadInitialData() }, [])
 
@@ -93,7 +94,6 @@ export function BuatSurat() {
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
-  const [templateSearch, setTemplateSearch] = useState('')
 
   if (step === 'select') {
     const filteredTemplates = templateSearch
