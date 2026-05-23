@@ -4,6 +4,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  useSidebar,
 } from '@/components/ui/sidebar'
 import { NavGroup } from './nav-group'
 import type { SidebarData } from './types'
@@ -16,12 +17,7 @@ export function AppSidebar({ sidebarData, ...props }: AppSidebarProps) {
   return (
     <Sidebar collapsible='icon' variant='sidebar' {...props}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          <span className="text-xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
-            <span className="text-primary">AI</span>
-            <span className="text-foreground">Sura</span>
-          </span>
-        </div>
+        <SidebarLogo />
       </SidebarHeader>
       <SidebarContent>
         {sidebarData.navGroups.map((group) => (
@@ -29,14 +25,45 @@ export function AppSidebar({ sidebarData, ...props }: AppSidebarProps) {
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <div className="px-2 py-1 text-[10px] text-muted-foreground">
-          <span style={{ fontFamily: "'Unica One', cursive" }}>
-            <span className="text-primary">AI</span>Sura
-          </span>
-          {' '}v1.0.0 • EAS Creative Studio
-        </div>
+        <SidebarFooterContent />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  )
+}
+
+function SidebarLogo() {
+  const { state } = useSidebar()
+  const isCollapsed = state === 'collapsed'
+
+  return (
+    <div className="flex items-center gap-2 px-2 py-1">
+      <span className="text-xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
+        {isCollapsed ? (
+          <span className="text-primary">AIS</span>
+        ) : (
+          <>
+            <span className="text-primary">AI</span>
+            <span className="text-foreground">Sura</span>
+          </>
+        )}
+      </span>
+    </div>
+  )
+}
+
+function SidebarFooterContent() {
+  const { state } = useSidebar()
+  const isCollapsed = state === 'collapsed'
+
+  if (isCollapsed) return null
+
+  return (
+    <div className="px-2 py-1 text-[10px] text-muted-foreground">
+      <span style={{ fontFamily: "'Unica One', cursive" }}>
+        <span className="text-primary">AI</span>Sura
+      </span>
+      {' '}v1.0.0 • EAS Creative Studio
+    </div>
   )
 }

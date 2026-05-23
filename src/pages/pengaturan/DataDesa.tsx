@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import { Plus, Trash2, Search } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import { getDataDesa, saveDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa, savePerangkatDesa, deletePerangkatDesa } from '@/services/perangkatDesaService'
 import { searchWarga } from '@/services/wargaService'
@@ -16,6 +17,9 @@ export function DataDesaPage() {
   const [desa, setDesa] = useState<Partial<DataDesa>>({})
   const [perangkat, setPerangkat] = useState<Partial<PerangkatDesa>[]>([])
   const [loading, setLoading] = useState(true)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editIndex, setEditIndex] = useState<number | null>(null)
+  const [editData, setEditData] = useState<Partial<PerangkatDesa>>({})
 
   useEffect(() => { loadData() }, [])
 
@@ -31,33 +35,45 @@ export function DataDesaPage() {
     try { await saveDataDesa(desa as any); alert('Data desa disimpan') } catch { alert('Gagal') }
   }
 
-  const handleSavePerangkat = async () => {
+  const openAddModal = () => {
+    const n = perangkat.length + 1
+    setEditData({ urutan: n, jabatan: n <= 8 ? DEFAULT_JABATAN[n - 1] || `Kadus ${n - 8}` : `Kadus ${n - 8}`, nama: '', gelar_depan: '', gelar_belakang: '', nik: '', nipd: '', alamat: '', warga_id: null })
+    setEditIndex(null)
+    setModalOpen(true)
+  }
+
+  const openEditModal = (index: number) => {
+    setEditData({ ...perangkat[index] })
+    setEditIndex(index)
+    setModalOpen(true)
+  }
+
+  const handleSaveModal = async () => {
     try {
-      for (const pd of perangkat) { if (pd.nama || pd.nik) await savePerangkatDesa(pd as any) }
+      if (editIndex !== null) {
+        const updated = [...perangkat]; updated[editIndex] = { ...updated[editIndex], ...editData }; setPerangkat(updated)
+      } else {
+        setPerangkat([...perangkat, editData])
+      }
+      await savePerangkatDesa(editData as any)
+      setModalOpen(false)
       alert('Perangkat desa disimpan')
     } catch { alert('Gagal') }
   }
 
-  const addPerangkat = () => {
-    const n = perangkat.length + 1
-    setPerangkat([...perangkat, { urutan: n, jabatan: `Kadus ${n - 8}`, nama: '', gelar_depan: '', gelar_belakang: '', nik: '', nipd: '', alamat: '', warga_id: null }])
-  }
-
-  const removePerangkat = async (i: number) => {
-    const pd = perangkat[i]; if (pd.id) await deletePerangkatDesa(pd.id)
-    setPerangkat(perangkat.filter((_, idx) => idx !== i))
-  }
-
-  const updatePd = (i: number, data: Partial<PerangkatDesa>) => {
-    const u = [...perangkat]; u[i] = { ...u[i], ...data }; setPerangkat(u)
+  const handleDelete = async (index: number) => {
+    if (!confirm('Hapus perangkat desa ini?')) return
+    const pd = perangkat[index]; if (pd.id) await deletePerangkatDesa(pd.id)
+    setPerangkat(perangkat.filter((_, i) => i !== index))
   }
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   return (
-    <div className="space-y-4 max-w-3xl">
+    <div className="space-y-4 max-w-4xl">
       <h1 className="text-2xl font-bold tracking-tight">Data Desa</h1>
 
+      {/* Identitas Desa */}
       <Card>
         <CardHeader><CardTitle className="text-sm">Identitas Desa</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-3">
@@ -73,23 +89,68 @@ export function DataDesaPage() {
         </CardContent>
       </Card>
 
+      {/* Perangkat Desa - Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Perangkat Desa</CardTitle>
-          <Button size="sm" variant="outline" onClick={addPerangkat}><Plus className="mr-1 h-3.5 w-3.5" />Tambah</Button>
+          <Button size="sm" onClick={openAddModal}><Plus className="mr-1 h-3.5 w-3.5" />Tambah</Button>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {perangkat.map((pd, i) => (
-            <PerangkatItem key={i} data={pd} index={i} onChange={d => updatePd(i, d)} onRemove={i >= 8 ? () => removePerangkat(i) : undefined} />
-          ))}
-          <Button size="sm" onClick={handleSavePerangkat}>Simpan Perangkat Desa</Button>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">No</TableHead>
+                <TableHead>Jabatan</TableHead>
+                <TableHead>Nama</TableHead>
+                <TableHead>NIK</TableHead>
+                <TableHead>NIPD</TableHead>
+                <TableHead className="w-20 text-right">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {perangkat.map((pd, i) => (
+                <TableRow key={i}>
+                  <TableCell className="text-muted-foreground">PD{pd.urutan || i + 1}</TableCell>
+                  <TableCell>{pd.jabatan}</TableCell>
+                  <TableCell className="font-medium">
+                    {[pd.gelar_depan, pd.nama, pd.gelar_belakang].filter(Boolean).join(' ') || '-'}
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{pd.nik || '-'}</TableCell>
+                  <TableCell className="text-xs">{pd.nipd || '-'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditModal(i)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {perangkat.length === 0 && (
+                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Belum ada data perangkat desa</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
+
+      {/* Modal Add/Edit */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editIndex !== null ? 'Edit' : 'Tambah'} Perangkat Desa</DialogTitle>
+          </DialogHeader>
+          <PerangkatForm data={editData} onChange={setEditData} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setModalOpen(false)}>Batal</Button>
+            <Button onClick={handleSaveModal}>Simpan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function PerangkatItem({ data, index, onChange, onRemove }: { data: Partial<PerangkatDesa>; index: number; onChange: (d: Partial<PerangkatDesa>) => void; onRemove?: () => void }) {
+function PerangkatForm({ data, onChange }: { data: Partial<PerangkatDesa>; onChange: (d: Partial<PerangkatDesa>) => void }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Warga[]>([])
   const [show, setShow] = useState(false)
@@ -100,19 +161,19 @@ function PerangkatItem({ data, index, onChange, onRemove }: { data: Partial<Pera
   }
 
   const selectWarga = (w: Warga) => {
-    onChange({ warga_id: w.id, nama: w.nama, nik: w.nik, alamat: `${w.alamat} RT ${w.rt} RW ${w.rw}` })
+    onChange({ ...data, warga_id: w.id, nama: w.nama, nik: w.nik, alamat: `${w.alamat} RT ${w.rt} RW ${w.rw}` })
     setShow(false); setQuery('')
   }
 
   return (
-    <div className="border rounded-md p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">PD{index + 1} — {data.jabatan}</span>
-        {onRemove && <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={onRemove}><Trash2 className="h-3 w-3" /></Button>}
-      </div>
+    <div className="space-y-3">
+      {/* Search warga */}
       <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-        <Input placeholder="Cari warga..." value={query} onChange={e => handleSearch(e.target.value)} className="pl-8 h-8 text-xs" />
+        <Label className="text-xs">Cari dari data warga (opsional)</Label>
+        <div className="relative mt-1">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input placeholder="Cari warga..." value={query} onChange={e => handleSearch(e.target.value)} className="pl-8 h-8 text-xs" />
+        </div>
         {show && results.length > 0 && (
           <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-10 max-h-32 overflow-y-auto">
             {results.map(w => (
@@ -123,17 +184,18 @@ function PerangkatItem({ data, index, onChange, onRemove }: { data: Partial<Pera
           </div>
         )}
       </div>
+
       <div className="grid grid-cols-4 gap-2">
-        <div className="space-y-1"><Label className="text-[10px]">Gelar Depan</Label><Input value={data.gelar_depan || ''} onChange={e => onChange({ gelar_depan: e.target.value })} className="h-7 text-xs" /></div>
-        <div className="space-y-1 col-span-2"><Label className="text-[10px]">Nama</Label><Input value={data.nama || ''} onChange={e => onChange({ nama: e.target.value })} className="h-7 text-xs" /></div>
-        <div className="space-y-1"><Label className="text-[10px]">Gelar Belakang</Label><Input value={data.gelar_belakang || ''} onChange={e => onChange({ gelar_belakang: e.target.value })} className="h-7 text-xs" /></div>
+        <div className="space-y-1"><Label className="text-xs">Gelar Depan</Label><Input value={data.gelar_depan || ''} onChange={e => onChange({ ...data, gelar_depan: e.target.value })} className="h-8 text-xs" placeholder="H." /></div>
+        <div className="space-y-1 col-span-2"><Label className="text-xs">Nama</Label><Input value={data.nama || ''} onChange={e => onChange({ ...data, nama: e.target.value })} className="h-8 text-xs" /></div>
+        <div className="space-y-1"><Label className="text-xs">Gelar Belakang</Label><Input value={data.gelar_belakang || ''} onChange={e => onChange({ ...data, gelar_belakang: e.target.value })} className="h-8 text-xs" placeholder="S.Pd." /></div>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <div className="space-y-1"><Label className="text-[10px]">NIK</Label><Input value={data.nik || ''} onChange={e => onChange({ nik: e.target.value })} className="h-7 text-xs" /></div>
-        <div className="space-y-1"><Label className="text-[10px]">NIPD</Label><Input value={data.nipd || ''} onChange={e => onChange({ nipd: e.target.value })} className="h-7 text-xs" /></div>
-        <div className="space-y-1"><Label className="text-[10px]">Jabatan</Label><Input value={data.jabatan || ''} onChange={e => onChange({ jabatan: e.target.value })} className="h-7 text-xs" /></div>
+        <div className="space-y-1"><Label className="text-xs">NIK</Label><Input value={data.nik || ''} onChange={e => onChange({ ...data, nik: e.target.value })} className="h-8 text-xs" /></div>
+        <div className="space-y-1"><Label className="text-xs">NIPD</Label><Input value={data.nipd || ''} onChange={e => onChange({ ...data, nipd: e.target.value })} className="h-8 text-xs" /></div>
+        <div className="space-y-1"><Label className="text-xs">Jabatan</Label><Input value={data.jabatan || ''} onChange={e => onChange({ ...data, jabatan: e.target.value })} className="h-8 text-xs" /></div>
       </div>
-      <div className="space-y-1"><Label className="text-[10px]">Alamat</Label><Input value={data.alamat || ''} onChange={e => onChange({ alamat: e.target.value })} className="h-7 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Alamat</Label><Input value={data.alamat || ''} onChange={e => onChange({ ...data, alamat: e.target.value })} className="h-8 text-xs" /></div>
     </div>
   )
 }
