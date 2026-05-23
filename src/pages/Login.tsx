@@ -60,12 +60,12 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* Right overlay gradient: 90% → 80% → 0%, width 50% */}
-      <div className="absolute inset-y-0 right-0 w-full sm:w-1/2 bg-gradient-to-l from-background/90 via-background/80 to-transparent" />
+      {/* Right overlay gradient: 90% → 80% → 0%, width 45% */}
+      <div className="absolute inset-y-0 right-0 w-full sm:w-[45%] bg-gradient-to-l from-background/90 via-background/80 to-transparent" />
 
-      {/* Form content - positioned on right, text center-aligned */}
+      {/* Form content - positioned on right, shifted closer to right edge */}
       <div className="relative z-10 flex min-h-svh items-center justify-end">
-        <div className="w-full sm:w-1/2 px-8 sm:px-16 space-y-6 flex flex-col items-center">
+        <div className="w-full sm:w-[40%] px-8 sm:px-10 sm:pr-8 space-y-6 flex flex-col items-center">
 
           {/* Desa identity (shown only if data exists) */}
           {dataDesa && (
