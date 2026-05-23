@@ -1,15 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Search, Download } from 'lucide-react'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Search, Download, CalendarIcon, Eye } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { searchWarga, findKepalaKeluarga } from '@/services/wargaService'
 import { getDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
-import { getNomorSuratConfig, incrementCounter } from '@/services/nomorSuratService'
+import { getNomorSuratConfig, incrementCounter, getCurrentCounter } from '@/services/nomorSuratService'
 import { saveRiwayat } from '@/services/riwayatService'
 import { generateNomorSuratParts } from '@/utils/nomorSuratGenerator'
 import type { TemplateSurat, DetectedPlaceholder, Warga, DataDesa, PerangkatDesa } from '@/types'
@@ -20,11 +24,18 @@ export function BuatSurat() {
   const [placeholders, setPlaceholders] = useState<DetectedPlaceholder[]>([])
   const [formValues, setFormValues] = useState<Record<string, string>>({})
   const [nomorOverride, setNomorOverride] = useState('')
+  const [tanggalOverride, setTanggalOverride] = useState<Date | undefined>(undefined)
   const [step, setStep] = useState<'select' | 'fill'>('select')
   const [loading, setLoading] = useState(true)
   const [dataDesa, setDataDesa] = useState<DataDesa | null>(null)
   const [perangkatDesa, setPerangkatDesa] = useState<PerangkatDesa[]>([])
   const [templateSearch, setTemplateSearch] = useState('')
+  const [nomorPreview, setNomorPreview] = useState('')
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewBlob, setPreviewBlob] = useState<Blob | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const previewRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { loadInitialData() }, [])
 
@@ -59,14 +70,80 @@ export function BuatSurat() {
     }
     setFormValues(values)
     setStep('fill')
+    // Load nomor surat preview
+    loadNomorPreview(t.prefix_surat || '')
+  }
+
+  const loadNomorPreview = async (prefix: string) => {
+    try {
+      const config = await getNomorSuratConfig()
+      if (!config) return
+      const counter = await getCurrentCounter()
+      const parts = generateNomorSuratParts(config.format, counter, config.kode_desa, prefix)
+      setNomorPreview(parts.NOMOR_SURAT)
+    } catch {}
+  }
+
+  /** Find the value for a W1 field by scanning placeholders for matching slot+field */
+  const findW1Value = (finalValues: Record<string, string>, field: string): string => {
+    const p = placeholders.find(ph => ph.slot === 'W1' && ph.field === field)
+    if (p) return finalValues[p.token] || ''
+    return ''
+  }
+
+  /** Build the final docx blob (shared by download and preview) */
+  const buildDocx = async (): Promise<{ blob: Blob; filename: string; finalValues: Record<string, string>; nomorUrut: number; nomorSurat: string } | null> => {
+    const config = await getNomorSuratConfig()
+    if (!config) { alert('Konfigurasi nomor surat belum diatur'); return null }
+    const nomorUrut = await incrementCounter()
+    const suratDate = tanggalOverride || new Date()
+    const parts = generateNomorSuratParts(config.format, nomorUrut, config.kode_desa, selectedTemplate!.prefix_surat || '', suratDate)
+
+    const finalValues = { ...formValues }
+    for (const p of placeholders) {
+      if (p.kategori === 'nomor_surat') {
+        if (p.field === 'NOMOR_SURAT' && nomorOverride) finalValues[p.token] = nomorOverride
+        else finalValues[p.token] = parts[p.field as keyof typeof parts] || ''
+      }
+    }
+    const svc = await import('@/services/templateService')
+    const templateBytes = await svc.getTemplateBlob(selectedTemplate!.file_path)
+    const { processDocxTemplate } = await import('@/utils/docxProcessor')
+    const result = await processDocxTemplate(templateBytes, finalValues)
+    const blob = new Blob([result], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+    const filename = `${selectedTemplate!.nama.replace(/\s+/g, '_')}_${parts.S_NOMOR}.docx`
+    return { blob, filename, finalValues, nomorUrut, nomorSurat: nomorOverride || parts.NOMOR_SURAT }
   }
 
   const handleGenerate = async () => {
     try {
+      const result = await buildDocx()
+      if (!result) return
+      const { downloadDocx } = await import('@/utils/docxProcessor')
+      await downloadDocx(await result.blob.arrayBuffer() as ArrayBuffer, result.filename)
+
+      const pemohon = {
+        nama: findW1Value(result.finalValues, 'NAMA'),
+        nik: findW1Value(result.finalValues, 'NIK'),
+        alamat: findW1Value(result.finalValues, 'ALAMAT_LENGKAP') || findW1Value(result.finalValues, 'ALAMAT'),
+      }
+      await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, result.nomorSurat, result.nomorUrut, result.finalValues, pemohon)
+      alert('Surat berhasil di-generate!')
+      setStep('select'); setSelectedTemplate(null); setFormValues({}); setNomorOverride(''); setTanggalOverride(undefined)
+    } catch (err) { alert('Gagal generate surat'); console.error(err) }
+  }
+
+  const handlePreview = async () => {
+    try {
+      setPreviewLoading(true)
+      setPreviewOpen(true)
       const config = await getNomorSuratConfig()
-      if (!config) { alert('Konfigurasi nomor surat belum diatur'); return }
-      const nomorUrut = await incrementCounter()
-      const parts = generateNomorSuratParts(config.format, nomorUrut, config.kode_desa, selectedTemplate!.prefix_surat || '')
+      if (!config) { alert('Konfigurasi nomor surat belum diatur'); setPreviewOpen(false); setPreviewLoading(false); return }
+      // Build preview without incrementing counter
+      const counter = await getCurrentCounter()
+      const suratDate = tanggalOverride || new Date()
+      const parts = generateNomorSuratParts(config.format, counter, config.kode_desa, selectedTemplate!.prefix_surat || '', suratDate)
+
       const finalValues = { ...formValues }
       for (const p of placeholders) {
         if (p.kategori === 'nomor_surat') {
@@ -76,20 +153,42 @@ export function BuatSurat() {
       }
       const svc = await import('@/services/templateService')
       const templateBytes = await svc.getTemplateBlob(selectedTemplate!.file_path)
-      const { processDocxTemplate, downloadDocx } = await import('@/utils/docxProcessor')
+      const { processDocxTemplate } = await import('@/utils/docxProcessor')
       const result = await processDocxTemplate(templateBytes, finalValues)
-      const filename = `${selectedTemplate!.nama.replace(/\s+/g, '_')}_${parts.S_NOMOR}.docx`
-      await downloadDocx(result, filename)
-      // Extract pemohon data (W1) for riwayat
-      const pemohon = {
-        nama: finalValues['W1_NAMA'] || '',
-        nik: finalValues['W1_NIK'] || '',
-        alamat: finalValues['W1_ALAMAT_LENGKAP'] || finalValues['W1_ALAMAT'] || '',
-      }
-      await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, nomorOverride || parts.NOMOR_SURAT, nomorUrut, finalValues, pemohon)
-      alert('Surat berhasil di-generate!')
-      setStep('select'); setSelectedTemplate(null); setFormValues({}); setNomorOverride('')
-    } catch (err) { alert('Gagal generate surat'); console.error(err) }
+      const blob = new Blob([result], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+      setPreviewBlob(blob)
+    } catch (err) { alert('Gagal membuat preview'); setPreviewOpen(false); setPreviewLoading(false); console.error(err) }
+  }
+
+  const handlePreviewDownload = async () => {
+    if (!previewBlob) return
+    try {
+      // For actual download, use the full generate flow (increments counter + saves riwayat)
+      await handleGenerate()
+      setPreviewOpen(false)
+    } catch (err) { console.error(err) }
+  }
+
+  // Callback ref: render docx-preview when the container element mounts
+  const previewCallbackRef = (node: HTMLDivElement | null) => {
+    previewRef.current = node
+    if (node && previewBlob) {
+      node.innerHTML = ''
+      import('docx-preview').then(({ renderAsync }) => {
+        renderAsync(previewBlob, node, undefined, {
+          className: 'docx-preview-wrapper',
+          inWrapper: true,
+          ignoreWidth: false,
+          ignoreHeight: false,
+          breakPages: true,
+        }).then(() => {
+          setPreviewLoading(false)
+        }).catch(err => {
+          console.error('docx-preview error:', err)
+          setPreviewLoading(false)
+        })
+      })
+    }
   }
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
@@ -139,57 +238,135 @@ export function BuatSurat() {
   const nomorPlaceholders = placeholders.filter(p => p.kategori === 'nomor_surat')
 
   return (
-    <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] max-w-3xl">
-      {/* Sticky header */}
-      <div className="sticky top-0 z-10 bg-background pb-3 border-b mb-3">
-        <div className="flex items-center justify-between">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Static header */}
+      <div className="shrink-0 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
             <p className="text-sm text-muted-foreground">Template: {selectedTemplate?.nama}</p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => { setStep('select'); setSelectedTemplate(null) }}>Kembali</Button>
-            <Button size="sm" onClick={handleGenerate}><Download className="mr-1 h-3.5 w-3.5" />Generate & Download</Button>
-          </div>
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => { setStep('select'); setSelectedTemplate(null) }}>
+            Kembali
+          </Button>
         </div>
       </div>
 
       {/* Scrollable form area */}
-      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="space-y-4 py-4">
 
-      {wargaSlots.map(slot => (
-        <WargaSection key={slot} slot={slot} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(updates) => setFormValues(prev => ({ ...prev, ...updates }))} dataDesa={dataDesa} />
-      ))}
+          {/* Data Surat - nomor & tanggal override (moved to top) */}
+          {nomorPlaceholders.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Data Surat</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Override Nomor Surat (opsional)</Label>
+                    <Input value={nomorOverride} onChange={e => setNomorOverride(e.target.value)} placeholder="Kosongkan untuk auto-generate" />
+                    {!nomorOverride && nomorPreview && (
+                      <p className="text-xs text-muted-foreground">Otomatis: <span className="font-mono font-medium text-foreground">{nomorPreview}</span></p>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Override Tanggal Surat (opsional)</Label>
+                    <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn('w-full justify-start text-left font-normal h-10', !tanggalOverride && 'text-muted-foreground')}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {tanggalOverride ? tanggalOverride.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : 'Pilih tanggal...'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={tanggalOverride}
+                          onSelect={(date) => { setTanggalOverride(date); setDatePickerOpen(false) }}
+                          className="scale-110 origin-top-left m-2"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    {tanggalOverride && (
+                      <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={() => setTanggalOverride(undefined)}>Reset tanggal</Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {nomorPlaceholders.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Nomor Surat</CardTitle></CardHeader>
-          <CardContent>
-            <Label>Override Nomor Surat (opsional)</Label>
-            <Input value={nomorOverride} onChange={e => setNomorOverride(e.target.value)} placeholder="Kosongkan untuk auto-generate" className="mt-1" />
-          </CardContent>
-        </Card>
-      )}
+          {/* Warga sections */}
+          {wargaSlots.map((slot, idx) => (
+            <WargaSection key={slot} slot={slot} index={idx + 1} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(updates) => setFormValues(prev => ({ ...prev, ...updates }))} dataDesa={dataDesa} />
+          ))}
 
-      {customPlaceholders.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-sm">Data Tambahan</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {customPlaceholders.map(p => (
-              <div key={p.token} className="space-y-1">
-                <Label>{p.field}</Label>
-                <Input value={formValues[p.token] || ''} onChange={e => setFormValues(prev => ({ ...prev, [p.token]: e.target.value }))} placeholder={`Isi ${p.field}`} />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+          {/* Custom placeholders */}
+          {customPlaceholders.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Data Tambahan</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                {customPlaceholders.map(p => (
+                  <div key={p.token} className="space-y-1">
+                    <Label>{p.field}</Label>
+                    <Input value={formValues[p.token] || ''} onChange={e => setFormValues(prev => ({ ...prev, [p.token]: e.target.value }))} placeholder={`Isi ${p.field}`} />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
+
+      {/* Static action bar */}
+      <div className="shrink-0 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            {wargaSlots.length > 0 ? `${wargaSlots.length} section warga` : 'Tanpa data warga'}
+            {customPlaceholders.length > 0 ? ` • ${customPlaceholders.length} field tambahan` : ''}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setStep('select'); setSelectedTemplate(null) }}>
+              Kembali
+            </Button>
+            <Button variant="secondary" className="w-full sm:w-auto" onClick={handlePreview}>
+              <Eye className="mr-1 h-3.5 w-3.5" />Preview
+            </Button>
+            <Button className="w-full sm:w-auto" onClick={handleGenerate}>
+              <Download className="mr-1 h-3.5 w-3.5" />Download
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview Modal */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="!max-w-[95vw] !w-[95vw] !h-[95vh] flex flex-col p-0" showCloseButton={false}>
+          <DialogHeader className="shrink-0 px-6 pt-6 pb-2">
+            <DialogTitle>Preview Surat</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-2">
+            {previewLoading && (
+              <div className="flex items-center justify-center py-20">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <span className="ml-3 text-sm text-muted-foreground">Memproses preview...</span>
+              </div>
+            )}
+            <div ref={previewCallbackRef} style={{ display: previewLoading ? 'none' : 'block' }} />
+          </div>
+          <DialogFooter className="shrink-0 px-6 pb-6 pt-2 border-t">
+            <Button variant="outline" onClick={() => setPreviewOpen(false)}>Tutup</Button>
+            <Button onClick={handlePreviewDownload}>
+              <Download className="mr-1 h-3.5 w-3.5" />Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot: string; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (updates: Record<string, string>) => void; dataDesa: DataDesa | null }) {
+function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }: { slot: string; index: number; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (updates: Record<string, string>) => void; dataDesa: DataDesa | null }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Warga[]>([])
   const [showResults, setShowResults] = useState(false)
@@ -237,7 +414,7 @@ function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot
 
   return (
     <Card>
-      <CardHeader><CardTitle className="text-sm">{slot}</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-sm">Data Warga {index}</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -254,7 +431,7 @@ function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot
           )}
         </div>
         <Separator />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {placeholders.map(p => (
             <div key={p.token} className="space-y-1">
               <Label className="text-xs">{p.field}</Label>

@@ -61,7 +61,7 @@ export function AplikasiPage() {
   }
 
   return (
-    <div className="space-y-4 max-w-lg">
+    <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight">Aplikasi</h1>
 
       <Card>

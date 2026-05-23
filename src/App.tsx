@@ -78,19 +78,27 @@ function App() {
   }
 
   const renderPage = () => {
-    switch (currentPath) {
-      case '/': return <Dashboard />
-      case '/buat-surat': return <BuatSurat />
-      case '/template-surat': return <TemplateSuratPage />
-      case '/placeholder': return <PlaceholderPage />
-      case '/data-warga': return <DataWarga />
-      case '/riwayat-surat': return <RiwayatSuratPage />
-      case '/pengaturan/data-desa': return <DataDesaPage />
-      case '/pengaturan/nomor-surat': return <NomorSuratPage />
-      case '/pengaturan/aplikasi': return <AplikasiPage />
-      case '/profil': return <Profil />
-      default: return <Dashboard />
-    }
+    const page = (() => {
+      switch (currentPath) {
+        case '/': return <Dashboard />
+        case '/buat-surat': return <BuatSurat />
+        case '/template-surat': return <TemplateSuratPage />
+        case '/placeholder': return <PlaceholderPage />
+        case '/data-warga': return <DataWarga />
+        case '/riwayat-surat': return <RiwayatSuratPage />
+        case '/pengaturan/data-desa': return <DataDesaPage />
+        case '/pengaturan/nomor-surat': return <NomorSuratPage />
+        case '/pengaturan/aplikasi': return <AplikasiPage />
+        case '/profil': return <Profil />
+        default: return <Dashboard />
+      }
+    })()
+
+    // Pages that manage their own scroll internally
+    if (currentPath === '/buat-surat' || currentPath === '/data-warga' || currentPath === '/riwayat-surat') return page
+
+    // All other pages get a default scroll wrapper
+    return <div className="flex-1 overflow-y-auto">{page}</div>
   }
 
   return (
@@ -99,7 +107,7 @@ function App() {
         <NavigationContext.Provider value={{ currentPath, navigate: setCurrentPath }}>
           <SidebarProvider>
             <AppSidebar sidebarData={sidebarData as SidebarData} />
-            <div className="flex flex-1 flex-col w-full">
+            <div className="flex min-h-0 flex-1 flex-col w-full overflow-hidden">
               <Header fixed>
                 <HeaderContent onLogout={handleLogout} />
               </Header>

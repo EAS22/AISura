@@ -14,6 +14,8 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useTheme } from '@/context/theme-provider'
 import { useNavigationContext } from '@/lib/router'
+import { getDisplayName } from '@/services/authService'
+import { getDisplayNameInitials } from '@/lib/utils'
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -46,7 +48,12 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
   const [clock, setClock] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const [displayName, setDisplayName] = useState('Admin')
   const searchRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    getDisplayName().then(setDisplayName).catch(() => {})
+  }, [currentPath]) // reload when navigating (e.g. after profile update)
 
   useEffect(() => {
     const update = () => {
@@ -147,12 +154,12 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
             <Avatar className="h-7 w-7">
-              <AvatarFallback className="text-xs">AD</AvatarFallback>
+              <AvatarFallback className="text-xs">{getDisplayNameInitials(displayName)}</AvatarFallback>
             </Avatar>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuLabel className="text-xs">Admin</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-xs">{displayName}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate('/profil')}>
             <User className="mr-2 h-3.5 w-3.5" /> Profil

@@ -11,11 +11,14 @@
     scrollbar-color: var(--border) transparent;
   }
   html {
-    @apply overflow-x-hidden;
+    @apply h-full overflow-hidden;
   }
   body {
-    @apply min-h-svh w-full bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar;
+    @apply h-full w-full overflow-hidden bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar;
     font-family: 'Poppins', sans-serif;
+  }
+  #root {
+    @apply flex h-full flex-col overflow-hidden;
   }
 
   /* Override Radix scroll locking for sticky headers */
@@ -42,6 +45,22 @@
 @utility container {
   margin-inline: auto;
   padding-inline: 2rem;
+}
+
+@utility font-table {
+  font-family: 'DM Mono', 'Google Sans Code', monospace;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+/* docx-preview: center rendered document at native page size */
+.docx-preview-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  background: transparent;
 }
 
 @utility no-scrollbar {

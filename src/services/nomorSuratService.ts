@@ -50,6 +50,11 @@ export async function incrementCounter(): Promise<number> {
   return newCounter;
 }
 
+export async function getCurrentCounter(): Promise<number> {
+  const config = await getNomorSuratConfig();
+  return config?.counter ?? 1;
+}
+
 export async function recalculateCounter(): Promise<void> {
   const currentYear = new Date().getFullYear();
   const rows = await select<{ max_nomor: number | null }>(

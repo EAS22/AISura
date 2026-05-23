@@ -112,69 +112,77 @@ export function DataWarga() {
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Data Warga</h1>
-          <p className="text-sm text-muted-foreground">{count} data</p>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* Static header */}
+      <div className="shrink-0 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Data Warga</h1>
+            <p className="text-sm text-muted-foreground">{count} data</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={handleDownloadTemplate}><Download className="mr-1 h-3.5 w-3.5" />Template</Button>
+            <Button size="sm" variant="outline" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
+            <Button size="sm" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
+            {count > 0 && <Button size="sm" variant="destructive" onClick={handleDeleteAll}><Trash2 className="mr-1 h-3.5 w-3.5" />Hapus Semua</Button>}
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={handleDownloadTemplate}><Download className="mr-1 h-3.5 w-3.5" />Template</Button>
-          <Button size="sm" variant="outline" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
-          <Button size="sm" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
-          {count > 0 && <Button size="sm" variant="destructive" onClick={handleDeleteAll}><Trash2 className="mr-1 h-3.5 w-3.5" />Hapus Semua</Button>}
+        <div className="relative max-w-sm mt-3">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Cari nama atau NIK..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
         </div>
       </div>
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Cari nama atau NIK..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8" />
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">No</TableHead>
-                <TableHead>NIK</TableHead>
-                <TableHead>Nama</TableHead>
-                <TableHead className="w-12">JK</TableHead>
-                <TableHead>Alamat</TableHead>
-                <TableHead className="w-20">RT/RW</TableHead>
-                <TableHead className="w-20 text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {paginated.map((w, i) => (
-                <TableRow key={w.id}>
-                  <TableCell className="text-muted-foreground">{page * perPage + i + 1}</TableCell>
-                  <TableCell className="font-mono text-xs">{w.nik}</TableCell>
-                  <TableCell>{w.nama}</TableCell>
-                  <TableCell>{w.jenis_kelamin === 'Laki-laki' ? 'L' : 'P'}</TableCell>
-                  <TableCell className="text-muted-foreground">{w.alamat}</TableCell>
-                  <TableCell className="text-muted-foreground">{w.rt.padStart(3, '0')}/{w.rw.padStart(3, '0')}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(w)}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteSingle(w.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  </TableCell>
+      {/* Scrollable table */}
+      <div className="min-h-0 flex-1 overflow-y-auto py-4">
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">No</TableHead>
+                  <TableHead>NIK</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead className="w-12">JK</TableHead>
+                  <TableHead>Alamat</TableHead>
+                  <TableHead className="w-20">RT/RW</TableHead>
+                  <TableHead className="w-20 text-right">Aksi</TableHead>
                 </TableRow>
-              ))}
-              {paginated.length === 0 && (
-                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Tidak ada data</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody className="font-table">
+                {paginated.map((w, i) => (
+                  <TableRow key={w.id}>
+                    <TableCell>{page * perPage + i + 1}</TableCell>
+                    <TableCell>{w.nik}</TableCell>
+                    <TableCell>{w.nama}</TableCell>
+                    <TableCell>{w.jenis_kelamin === 'Laki-laki' ? 'L' : 'P'}</TableCell>
+                    <TableCell>{w.alamat}</TableCell>
+                    <TableCell>{w.rt.padStart(3, '0')}/{w.rw.padStart(3, '0')}</TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(w)}><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteSingle(w.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {paginated.length === 0 && (
+                  <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Tidak ada data</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
 
+      {/* Static pagination footer */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
-          <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>
-          <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Next</Button>
+        <div className="shrink-0 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
+            <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Next</Button>
+          </div>
         </div>
       )}
 

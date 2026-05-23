@@ -73,7 +73,7 @@ export function DataDesaPage() {
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   return (
-    <div className="space-y-4 max-w-4xl">
+    <div className="space-y-4">
       <h1 className="text-2xl font-bold tracking-tight">Data Desa</h1>
 
       {/* Identitas Desa */}
