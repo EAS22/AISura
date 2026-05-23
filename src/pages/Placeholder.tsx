@@ -1,25 +1,53 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Search } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Search, Copy, Check } from 'lucide-react'
 import { DESA_PLACEHOLDERS, NOMOR_SURAT_PLACEHOLDERS, WARGA_FIELDS, PERANGKAT_DESA_FIELDS, PERANGKAT_DESA_ALIASES } from '@/constants/placeholders'
 
 export function PlaceholderPage() {
   const [search, setSearch] = useState('')
+  const [selectedToken, setSelectedToken] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [copied, setCopied] = useState('')
+
   const filter = (token: string, desc: string) => {
     if (!search) return true
     const q = search.toLowerCase()
     return token.toLowerCase().includes(q) || desc.toLowerCase().includes(q)
   }
 
+  const handleCardClick = (token: string) => {
+    setSelectedToken(token)
+    setModalOpen(true)
+    setCopied('')
+  }
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setCopied(text)
+    setTimeout(() => setCopied(''), 2000)
+  }
+
+  // Strip outer braces for suffix generation
+  const baseToken = selectedToken?.replace(/^\{|\}$/g, '') || ''
+
+  const suffixOptions = [
+    { label: 'Tanpa suffix (apa adanya)', suffix: '', result: `{${baseToken}}` },
+    { label: 'UPPERCASE', suffix: '_U', result: `{${baseToken}_U}` },
+    { label: 'lowercase', suffix: '_L', result: `{${baseToken}_L}` },
+    { label: 'Propercase (Title Case)', suffix: '_P', result: `{${baseToken}_P}` },
+  ]
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Kamus Placeholder</h1>
-        <p className="text-sm text-muted-foreground">Daftar semua placeholder yang tersedia untuk template surat</p>
+        <p className="text-sm text-muted-foreground">Klik placeholder untuk menyalin dengan pilihan style</p>
       </div>
 
       <div className="relative max-w-sm">
@@ -63,7 +91,7 @@ export function PlaceholderPage() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {WARGA_FIELDS.filter(f => filter(`W1_${f}`, f)).map(f => (
-                  <PlaceholderCard key={f} token={`{Wn_${f}}`} description={f.replace(/_/g, ' ')} />
+                  <PlaceholderCard key={f} token={`{Wn_${f}}`} description={f.replace(/_/g, ' ')} onClick={() => handleCardClick(`{Wn_${f}}`)} />
                 ))}
               </div>
             </CardContent>
@@ -76,14 +104,14 @@ export function PlaceholderPage() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {PERANGKAT_DESA_FIELDS.filter(f => filter(`PD1_${f}`, f)).map(f => (
-                  <PlaceholderCard key={f} token={`{PDn_${f}}`} description={f.replace(/_/g, ' ')} />
+                  <PlaceholderCard key={f} token={`{PDn_${f}}`} description={f.replace(/_/g, ' ')} onClick={() => handleCardClick(`{PDn_${f}}`)} />
                 ))}
               </div>
               <div>
                 <h4 className="text-xs font-medium mb-2 text-muted-foreground">Alias (shortcut)</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {Object.entries(PERANGKAT_DESA_ALIASES).filter(([k]) => filter(k, k)).map(([alias, target]) => (
-                    <PlaceholderCard key={alias} token={`{${alias}}`} description={`→ {${target}}`} />
+                    <PlaceholderCard key={alias} token={`{${alias}}`} description={`→ {${target}}`} onClick={() => handleCardClick(`{${alias}}`)} />
                   ))}
                 </div>
               </div>
@@ -96,7 +124,7 @@ export function PlaceholderPage() {
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {DESA_PLACEHOLDERS.filter(p => filter(p.token, p.deskripsi)).map(p => (
-                  <PlaceholderCard key={p.token} token={`{${p.token}}`} description={p.deskripsi} />
+                  <PlaceholderCard key={p.token} token={`{${p.token}}`} description={p.deskripsi} onClick={() => handleCardClick(`{${p.token}}`)} />
                 ))}
               </div>
             </CardContent>
@@ -108,22 +136,54 @@ export function PlaceholderPage() {
             <CardContent className="pt-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {NOMOR_SURAT_PLACEHOLDERS.filter(p => filter(p.token, p.deskripsi)).map(p => (
-                  <PlaceholderCard key={p.token} token={`{${p.token}}`} description={p.deskripsi} />
+                  <PlaceholderCard key={p.token} token={`{${p.token}}`} description={p.deskripsi} onClick={() => handleCardClick(`{${p.token}}`)} />
                 ))}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Suffix Modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-base">{selectedToken}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Pilih style lalu klik untuk menyalin:</p>
+          <div className="space-y-2">
+            {suffixOptions.map(opt => (
+              <button
+                key={opt.suffix}
+                onClick={() => handleCopy(opt.result)}
+                className="w-full flex items-center justify-between rounded-md border p-3 hover:bg-accent transition-colors text-left"
+              >
+                <div>
+                  <p className="font-mono text-sm font-medium">{opt.result}</p>
+                  <p className="text-xs text-muted-foreground">{opt.label}</p>
+                </div>
+                {copied === opt.result ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function PlaceholderCard({ token, description }: { token: string; description: string }) {
+function PlaceholderCard({ token, description, onClick }: { token: string; description: string; onClick: () => void }) {
   return (
-    <div className="rounded-md border p-2.5 space-y-0.5">
+    <button
+      onClick={onClick}
+      className="rounded-md border p-2.5 space-y-0.5 text-left hover:bg-accent hover:border-primary/30 transition-colors cursor-pointer"
+    >
       <p className="font-mono text-sm font-medium text-foreground">{token}</p>
       <p className="text-xs text-muted-foreground">{description}</p>
-    </div>
+    </button>
   )
 }

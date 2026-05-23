@@ -85,7 +85,66 @@ export function DataDesaPage() {
           <div className="space-y-1"><Label>Telepon</Label><Input value={desa.telepon || ''} onChange={e => setDesa({ ...desa, telepon: e.target.value })} /></div>
           <div className="space-y-1"><Label>Email</Label><Input value={desa.email || ''} onChange={e => setDesa({ ...desa, email: e.target.value })} /></div>
           <div className="space-y-1"><Label>Alamat Kantor</Label><Input value={desa.alamat_kantor || ''} onChange={e => setDesa({ ...desa, alamat_kantor: e.target.value })} /></div>
-          <div className="col-span-2"><Button size="sm" onClick={handleSaveDesa}>Simpan Data Desa</Button></div>
+        </CardContent>
+      </Card>
+
+      {/* Kop Surat & Logo */}
+      <Card>
+        <CardHeader><CardTitle className="text-sm">Kop Surat & Logo Desa</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Kop Surat (placeholder: {'{KOP_SURAT}'})</Label>
+            <p className="text-xs text-muted-foreground">Gambar header surat yang akan menggantikan placeholder {'{KOP_SURAT}'} di template docx.</p>
+            {desa.kop_surat && (
+              <div className="border rounded-md p-2">
+                <img src={desa.kop_surat} alt="Kop Surat" className="max-h-24 object-contain" />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={async () => {
+                try {
+                  const { open } = await import('@tauri-apps/plugin-dialog')
+                  const { readFile } = await import('@tauri-apps/plugin-fs')
+                  const filePath = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }], multiple: false })
+                  if (!filePath) return
+                  const bytes = await readFile(filePath as string)
+                  const base64 = btoa(String.fromCharCode(...bytes))
+                  const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
+                  const dataUrl = `data:image/${ext};base64,${base64}`
+                  setDesa({ ...desa, kop_surat: dataUrl })
+                } catch (err) { console.error(err) }
+              }}>Upload Kop Surat</Button>
+              {desa.kop_surat && <Button size="sm" variant="ghost" onClick={() => setDesa({ ...desa, kop_surat: '' })}>Hapus</Button>}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Logo Desa</Label>
+            <p className="text-xs text-muted-foreground">Logo/lambang desa.</p>
+            {desa.logo_desa && (
+              <div className="border rounded-md p-2">
+                <img src={desa.logo_desa} alt="Logo Desa" className="max-h-20 object-contain" />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={async () => {
+                try {
+                  const { open } = await import('@tauri-apps/plugin-dialog')
+                  const { readFile } = await import('@tauri-apps/plugin-fs')
+                  const filePath = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }], multiple: false })
+                  if (!filePath) return
+                  const bytes = await readFile(filePath as string)
+                  const base64 = btoa(String.fromCharCode(...bytes))
+                  const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
+                  const dataUrl = `data:image/${ext};base64,${base64}`
+                  setDesa({ ...desa, logo_desa: dataUrl })
+                } catch (err) { console.error(err) }
+              }}>Upload Logo</Button>
+              {desa.logo_desa && <Button size="sm" variant="ghost" onClick={() => setDesa({ ...desa, logo_desa: '' })}>Hapus</Button>}
+            </div>
+          </div>
+
+          <Button size="sm" onClick={handleSaveDesa}>Simpan Data Desa</Button>
         </CardContent>
       </Card>
 
