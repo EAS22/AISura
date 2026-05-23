@@ -1,11 +1,88 @@
+import { useState, useEffect } from 'react';
+import { initDatabase } from './services/db';
+import { hasPassword, getDisplayName } from './services/authService';
+import { useAuth } from './hooks/useAuth';
+import { Layout } from './components/layout/Layout';
+import { Login } from './pages/Login';
+import { Dashboard } from './pages/Dashboard';
+import type { PageId } from './types';
+
 function App() {
+  const [isReady, setIsReady] = useState(false);
+  const { status, setStatus, setDisplayName } = useAuth();
+  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+
+  useEffect(() => {
+    const bootstrap = async () => {
+      try {
+        await initDatabase();
+        const passwordExists = await hasPassword();
+        if (passwordExists) {
+          const name = await getDisplayName();
+          setDisplayName(name);
+          setStatus('login');
+        } else {
+          setStatus('setup');
+        }
+        setIsReady(true);
+      } catch (error) {
+        console.error('Failed to initialize:', error);
+        // In dev mode without Tauri, show app anyway
+        setStatus('setup');
+        setIsReady(true);
+      }
+    };
+    bootstrap();
+  }, [setStatus, setDisplayName]);
+
+  const handleLoginSuccess = async () => {
+    try {
+      const name = await getDisplayName();
+      setDisplayName(name);
+    } catch {}
+    setStatus('authenticated');
+  };
+
+  const handleLogout = () => {
+    setStatus('login');
+    setCurrentPage('dashboard');
+  };
+
+  if (!isReady || status === 'checking') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-surface)]">
+        <div className="text-center">
+          <span className="text-2xl" style={{ fontFamily: "'Unica One', cursive" }}>
+            <span className="text-[var(--color-accent)]">AI</span>
+            <span className="text-[var(--color-text-primary)]">Sura</span>
+          </span>
+          <p className="text-xs text-[var(--color-text-tertiary)] mt-2">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === 'setup' || status === 'login') {
+    return <Login isSetup={status === 'setup'} onSuccess={handleLoginSuccess} />;
+  }
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'dashboard':
+        return <Dashboard />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <h1 className="font-logo text-3xl">
-        <span className="text-blue-600">AI</span>
-        <span className="text-gray-900">Sura</span>
-      </h1>
-    </div>
+    <Layout
+      currentPage={currentPage}
+      onNavigate={setCurrentPage}
+      onLogout={handleLogout}
+    >
+      {renderPage()}
+    </Layout>
   );
 }
 
