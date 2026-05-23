@@ -7,6 +7,7 @@ import { NavigationContext } from '@/lib/router'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
 import { Header } from '@/components/layout/header'
+import { HeaderContent } from '@/components/layout/header-content'
 import { Main } from '@/components/layout/main'
 import { Login } from '@/pages/Login'
 import { Dashboard } from '@/pages/Dashboard'
@@ -99,7 +100,9 @@ function App() {
           <SidebarProvider>
             <AppSidebar sidebarData={sidebarData as SidebarData} />
             <div className="flex flex-1 flex-col w-full">
-              <Header />
+              <Header fixed>
+                <HeaderContent onLogout={handleLogout} />
+              </Header>
               <Main>
                 {renderPage()}
               </Main>
