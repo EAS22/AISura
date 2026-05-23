@@ -62,30 +62,30 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* Right overlay with gradient */}
-      <div className="absolute inset-y-0 right-0 w-full sm:w-[450px] bg-gradient-to-l from-background/95 via-background/90 to-transparent" />
+      {/* Right overlay with gradient - wider */}
+      <div className="absolute inset-y-0 right-0 w-full sm:w-[520px] bg-gradient-to-l from-background/95 via-background/90 to-transparent" />
 
-      {/* Form content - positioned on right */}
+      {/* Form content - positioned on right, text right-aligned */}
       <div className="relative z-10 flex min-h-svh items-center justify-end">
-        <div className="w-full sm:w-[400px] px-8 sm:px-12 space-y-6">
+        <div className="w-full sm:w-[440px] px-8 sm:px-12 space-y-6 text-right">
 
           {/* Desa identity (shown only if data exists) */}
           {dataDesa && (
-            <div className="flex items-center gap-3">
-              {dataDesa.logo_desa && (
-                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 object-contain rounded" />
-              )}
-              <div>
+            <div className="flex items-center gap-3 justify-end">
+              <div className="text-right">
                 <p className="text-sm font-semibold text-foreground">Pemerintah Desa {dataDesa.desa}</p>
                 <p className="text-xs text-muted-foreground">
                   {[dataDesa.kecamatan && `Kec. ${dataDesa.kecamatan}`, dataDesa.kabupaten && `Kab. ${dataDesa.kabupaten}`].filter(Boolean).join(', ')}
                 </p>
               </div>
+              {dataDesa.logo_desa && (
+                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 object-contain rounded" />
+              )}
             </div>
           )}
 
           {/* Logo App */}
-          <div>
+          <div className="text-right">
             <span className="text-4xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
               <span className="text-primary">AI</span>
               <span className="text-foreground">Sura</span>
@@ -94,14 +94,14 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
           </div>
 
           {/* Form */}
-          <div className="space-y-1">
+          <div className="space-y-1 text-right">
             <h2 className="text-xl font-semibold">{isSetup ? 'Buat Password' : 'Selamat Datang'}</h2>
             <p className="text-sm text-muted-foreground">
               {isSetup ? 'Buat password untuk mengamankan aplikasi' : 'Masukkan password untuk melanjutkan'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 text-left">
             <div className="space-y-2">
               <Label htmlFor="password">{isSetup ? 'Password Baru' : 'Password'}</Label>
               <Input
@@ -132,7 +132,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
             </Button>
           </form>
 
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-[10px] text-muted-foreground text-right">
             EAS Creative Studio • v1.0.0
           </p>
         </div>
