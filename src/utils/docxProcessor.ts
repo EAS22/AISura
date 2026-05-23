@@ -6,10 +6,14 @@ import { TemplateHandler, type TemplateData } from 'easy-template-x';
 function base64ToImageData(dataUrl: string): { source: ArrayBuffer; format: string; width: number; height: number } | null {
   if (!dataUrl || !dataUrl.startsWith('data:image/')) return null;
 
-  const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|webp);base64,(.+)$/);
+  const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|gif|bmp|webp);base64,(.+)$/);
   if (!match) return null;
 
-  const format = match[1] === 'jpg' ? 'jpeg' : match[1];
+  // easy-template-x requires full mime type: "image/png", "image/jpeg", etc.
+  let mimeType = `image/${match[1]}`;
+  if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
+  if (mimeType === 'image/webp') mimeType = 'image/png'; // fallback unsupported
+
   const base64 = match[2];
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -19,9 +23,9 @@ function base64ToImageData(dataUrl: string): { source: ArrayBuffer; format: stri
 
   return {
     source: bytes.buffer as ArrayBuffer,
-    format: format === 'webp' ? 'png' : format, // easy-template-x supports png/jpeg
-    width: 600, // default width in points (will fit page width)
-    height: 100, // default height
+    format: mimeType,
+    width: 600,
+    height: 100,
   };
 }
 

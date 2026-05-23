@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createPassword, verifyPassword } from '@/services/authService'
 
 interface LoginProps {
@@ -18,7 +17,6 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   const [loginImage, setLoginImage] = useState('/images/login-illustration.png')
 
   useEffect(() => {
-    // Check if custom login image exists in localStorage
     const customImage = localStorage.getItem('aisura-login-image')
     if (customImage) setLoginImage(customImage)
   }, [])
@@ -43,53 +41,72 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   }
 
   return (
-    <div className="flex min-h-svh">
-      {/* Left column - Illustration */}
-      <div className="hidden lg:flex lg:flex-1 items-center justify-center bg-muted/30 p-8">
-        <img
-          src={loginImage}
-          alt="Ilustrasi"
-          className="max-w-full max-h-[80vh] object-contain rounded-lg"
-        />
-      </div>
+    <div className="relative min-h-svh w-full overflow-hidden">
+      {/* Fullscreen background image */}
+      <img
+        src={loginImage}
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover"
+      />
 
-      {/* Right column - Form */}
-      <div className="flex flex-1 lg:max-w-md items-center justify-center p-6">
-        <Card className="w-full max-w-sm border-0 shadow-none lg:border lg:shadow-sm">
-          <CardHeader className="text-center">
-            <div className="mb-2">
-              <span className="text-3xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
-                <span className="text-primary">AI</span>
-                <span className="text-foreground">Sura</span>
-              </span>
-            </div>
-            <CardTitle>{isSetup ? 'Buat Password' : 'Login'}</CardTitle>
-            <CardDescription>
+      {/* Left overlay with gradient */}
+      <div className="absolute inset-y-0 left-0 w-full sm:w-[420px] bg-gradient-to-r from-background/95 via-background/85 to-transparent" />
+
+      {/* Form content - positioned on left */}
+      <div className="relative z-10 flex min-h-svh items-center px-8 sm:px-12 max-w-[400px]">
+        <div className="w-full space-y-6">
+          {/* Logo */}
+          <div>
+            <span className="text-4xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
+              <span className="text-primary">AI</span>
+              <span className="text-foreground">Sura</span>
+            </span>
+            <p className="text-sm text-muted-foreground mt-1">Aplikasi Surat Otomatis Desa</p>
+          </div>
+
+          {/* Form */}
+          <div className="space-y-1">
+            <h2 className="text-xl font-semibold">{isSetup ? 'Buat Password' : 'Selamat Datang'}</h2>
+            <p className="text-sm text-muted-foreground">
               {isSetup ? 'Buat password untuk mengamankan aplikasi' : 'Masukkan password untuk melanjutkan'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">{isSetup ? 'Password Baru' : 'Password'}</Label>
-                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Masukkan password" />
-              </div>
-              {isSetup && (
-                <div className="space-y-2">
-                  <Label htmlFor="confirm">Konfirmasi Password</Label>
-                  <Input id="confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Ulangi password" />
-                </div>
-              )}
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Loading...' : isSetup ? 'Buat Password' : 'Masuk'}
-              </Button>
-            </form>
-            <p className="text-[10px] text-muted-foreground text-center mt-6">
-              Aplikasi Surat Otomatis Desa<br />EAS Creative Studio • v1.0.0
             </p>
-          </CardContent>
-        </Card>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="password">{isSetup ? 'Password Baru' : 'Password'}</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Masukkan password"
+                className="bg-background/80 backdrop-blur-sm"
+              />
+            </div>
+            {isSetup && (
+              <div className="space-y-2">
+                <Label htmlFor="confirm">Konfirmasi Password</Label>
+                <Input
+                  id="confirm"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi password"
+                  className="bg-background/80 backdrop-blur-sm"
+                />
+              </div>
+            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Loading...' : isSetup ? 'Buat Password' : 'Masuk'}
+            </Button>
+          </form>
+
+          <p className="text-[10px] text-muted-foreground">
+            EAS Creative Studio • v1.0.0
+          </p>
+        </div>
       </div>
     </div>
   )
