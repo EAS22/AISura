@@ -1,7 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { useConfirm } from '@/hooks/use-confirm'
 
 export function AplikasiPage() {
+  const { confirm, ConfirmDialog } = useConfirm()
   const handleBackup = async () => {
     try {
       const { exportBackup } = await import('@/services/backupService')
@@ -19,7 +21,8 @@ export function AplikasiPage() {
   }
 
   const handleReset = async () => {
-    if (!confirm('Hapus semua data (kecuali password)? Tidak bisa dibatalkan.')) return
+    const ok = await confirm({ title: 'Reset Semua Data?', description: 'Semua data (kecuali password) akan dihapus permanen. Tidak bisa dibatalkan.' })
+    if (!ok) return
     try {
       const { resetAllData } = await import('@/services/backupService')
       await resetAllData()
@@ -61,6 +64,8 @@ export function AplikasiPage() {
           <p>Web: eas.biz.id</p>
         </CardContent>
       </Card>
+
+      <ConfirmDialog />
     </div>
   )
 }

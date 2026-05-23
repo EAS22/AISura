@@ -7,9 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Download, Trash2, RotateCcw, Search } from 'lucide-react'
 import { getAllRiwayat, deleteRiwayat, deleteAllRiwayat } from '@/services/riwayatService'
 import { exportRiwayatToExcel } from '@/utils/excelExporter'
+import { useConfirm } from '@/hooks/use-confirm'
 import type { RiwayatSurat } from '@/types'
 
 export function RiwayatSuratPage() {
+  const { confirm, ConfirmDialog } = useConfirm()
   const [riwayat, setRiwayat] = useState<RiwayatSurat[]>([])
   const [filtered, setFiltered] = useState<RiwayatSurat[]>([])
   const [search, setSearch] = useState('')
@@ -39,12 +41,14 @@ export function RiwayatSuratPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus riwayat ini?')) return
+    const ok = await confirm({ title: 'Hapus Riwayat?', description: 'Riwayat surat ini akan dihapus.' })
+    if (!ok) return
     await deleteRiwayat(id); await loadData()
   }
 
   const handleDeleteAll = async () => {
-    if (!confirm('Hapus semua riwayat?')) return
+    const ok = await confirm({ title: 'Hapus Semua Riwayat?', description: 'Semua riwayat surat akan dihapus permanen.' })
+    if (!ok) return
     await deleteAllRiwayat(); await loadData()
   }
 
@@ -103,6 +107,8 @@ export function RiwayatSuratPage() {
           </Table>
         </CardContent>
       </Card>
+
+      <ConfirmDialog />
     </div>
   )
 }

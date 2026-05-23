@@ -9,9 +9,11 @@ import { Upload, Download, Trash2, Search, Pencil, Plus } from 'lucide-react'
 import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, addWarga, getWargaCount } from '@/services/wargaService'
 import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
+import { useConfirm } from '@/hooks/use-confirm'
 import type { Warga } from '@/types'
 
 export function DataWarga() {
+  const { confirm, ConfirmDialog } = useConfirm()
   const [wargaList, setWargaList] = useState<Warga[]>([])
   const [filtered, setFiltered] = useState<Warga[]>([])
   const [search, setSearch] = useState('')
@@ -68,7 +70,8 @@ export function DataWarga() {
   }
 
   const handleDeleteAll = async () => {
-    if (!confirm('Hapus semua data warga?')) return
+    const ok = await confirm({ title: 'Hapus Semua Data Warga?', description: 'Semua data warga akan dihapus permanen.' })
+    if (!ok) return
     await deleteAllWarga(); await loadData()
   }
 
@@ -87,7 +90,8 @@ export function DataWarga() {
   }
 
   const handleDeleteSingle = async (id: string) => {
-    if (!confirm('Hapus data warga ini?')) return
+    const ok = await confirm({ title: 'Hapus Data Warga?', description: 'Data warga ini akan dihapus.' })
+    if (!ok) return
     await deleteWarga(id)
     await loadData()
   }
@@ -201,6 +205,8 @@ export function DataWarga() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog />
     </div>
   )
 }

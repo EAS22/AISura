@@ -9,11 +9,13 @@ import { Plus, Pencil, Trash2, Search } from 'lucide-react'
 import { getDataDesa, saveDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa, savePerangkatDesa, deletePerangkatDesa } from '@/services/perangkatDesaService'
 import { searchWarga } from '@/services/wargaService'
+import { useConfirm } from '@/hooks/use-confirm'
 import type { DataDesa, PerangkatDesa, Warga } from '@/types'
 
 const DEFAULT_JABATAN = ['Kepala Desa', 'Sekretaris Desa', 'Kaur TU & Umum', 'Kaur Keuangan', 'Kaur Perencanaan', 'Kasi Pemerintahan', 'Kasi Kesejahteraan', 'Kasi Pelayanan']
 
 export function DataDesaPage() {
+  const { confirm, ConfirmDialog } = useConfirm()
   const [desa, setDesa] = useState<Partial<DataDesa>>({})
   const [perangkat, setPerangkat] = useState<Partial<PerangkatDesa>[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,7 +64,8 @@ export function DataDesaPage() {
   }
 
   const handleDelete = async (index: number) => {
-    if (!confirm('Hapus perangkat desa ini?')) return
+    const ok = await confirm({ title: 'Hapus Perangkat Desa?', description: 'Data perangkat desa ini akan dihapus.' })
+    if (!ok) return
     const pd = perangkat[index]; if (pd.id) await deletePerangkatDesa(pd.id)
     setPerangkat(perangkat.filter((_, i) => i !== index))
   }
@@ -205,6 +208,8 @@ export function DataDesaPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog />
     </div>
   )
 }

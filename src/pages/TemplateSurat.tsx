@@ -25,6 +25,9 @@ export function TemplateSuratPage() {
   const [editDeskripsi, setEditDeskripsi] = useState('')
   const [editPrefix, setEditPrefix] = useState('')
 
+  // Delete confirm state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+
   useEffect(() => { loadTemplates() }, [])
 
   const loadTemplates = async () => {
@@ -50,10 +53,10 @@ export function TemplateSuratPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Hapus template ini?')) return
     try {
       const svc = await import('@/services/templateService')
       await svc.deleteTemplate(id)
+      setDeleteConfirmId(null)
       await loadTemplates()
     } catch (err) { alert('Gagal menghapus'); console.error(err) }
   }
@@ -113,7 +116,7 @@ export function TemplateSuratPage() {
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditModal(t)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete(t.id)}>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => setDeleteConfirmId(t.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -175,6 +178,20 @@ export function TemplateSuratPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModal(false)}>Batal</Button>
             <Button onClick={handleSaveEdit}>Simpan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirm Dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Hapus Template?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Template yang dihapus tidak bisa dikembalikan. Riwayat surat yang menggunakan template ini tetap tersimpan.</p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Batal</Button>
+            <Button variant="destructive" onClick={() => deleteConfirmId && handleDelete(deleteConfirmId)}>Hapus</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -71,6 +71,8 @@ export async function deleteTemplate(id: string): Promise<void> {
   if (template) {
     try { await remove(template.file_path, { baseDir: BaseDirectory.AppConfig }); } catch { /* ignore */ }
   }
+  // Clear foreign key references in riwayat_surat
+  await execute('UPDATE riwayat_surat SET template_id = NULL WHERE template_id = $1', [id]);
   await execute('DELETE FROM template_labels WHERE template_id = $1', [id]);
   await execute('DELETE FROM templates WHERE id = $1', [id]);
 }
