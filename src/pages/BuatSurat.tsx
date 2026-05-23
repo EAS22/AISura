@@ -132,7 +132,7 @@ export function BuatSurat() {
       </div>
 
       {wargaSlots.map(slot => (
-        <WargaSection key={slot} slot={slot} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(k, v) => setFormValues({ ...formValues, [k]: v })} />
+        <WargaSection key={slot} slot={slot} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(k, v) => setFormValues({ ...formValues, [k]: v })} dataDesa={dataDesa} />
       ))}
 
       {nomorPlaceholders.length > 0 && (
@@ -162,7 +162,7 @@ export function BuatSurat() {
   )
 }
 
-function WargaSection({ slot, placeholders, values, onChange }: { slot: string; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (k: string, v: string) => void }) {
+function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot: string; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (k: string, v: string) => void; dataDesa: DataDesa | null }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Warga[]>([])
   const [showResults, setShowResults] = useState(false)
@@ -193,8 +193,15 @@ function WargaSection({ slot, placeholders, values, onChange }: { slot: string; 
       if (kk) kepalaKeluarga = kk.nama
     }
 
-    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: `${w.alamat} RT ${rt} RW ${rw}`, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}`, KEPALA_KELUARGA: kepalaKeluarga }
-    for (const p of placeholders) { if (map[p.field]) onChange(p.token, map[p.field]) }
+    // Build ALAMAT_LENGKAP with desa info
+    const alamatParts = [`${w.alamat} RT ${rt} RW ${rw}`]
+    if (dataDesa?.desa) alamatParts.push(`Desa ${dataDesa.desa}`)
+    if (dataDesa?.kecamatan) alamatParts.push(`Kecamatan ${dataDesa.kecamatan}`)
+    if (dataDesa?.kabupaten) alamatParts.push(`Kabupaten ${dataDesa.kabupaten}`)
+    const alamatLengkap = alamatParts.join(' ')
+
+    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: alamatLengkap, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}`, KEPALA_KELUARGA: kepalaKeluarga }
+    for (const p of placeholders) { if (p.field in map) onChange(p.token, map[p.field]) }
     setShowResults(false); setQuery('')
   }
 
