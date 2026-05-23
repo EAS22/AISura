@@ -51,3 +51,15 @@ export async function importWargaBatch(wargaList: Omit<Warga, 'id' | 'created_at
 export async function deleteAllWarga(): Promise<void> {
   await execute('DELETE FROM warga');
 }
+
+export async function deleteWarga(id: string): Promise<void> {
+  await execute('DELETE FROM warga WHERE id = $1', [id]);
+}
+
+export async function updateWarga(id: string, data: Partial<Omit<Warga, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
+  const now = new Date().toISOString();
+  await execute(
+    `UPDATE warga SET no_kk=$1, nik=$2, nama=$3, jenis_kelamin=$4, tempat_lahir=$5, tanggal_lahir=$6, agama=$7, status=$8, hub_keluarga=$9, pendidikan=$10, pekerjaan=$11, nama_ibu=$12, nama_ayah=$13, alamat=$14, rt=$15, rw=$16, updated_at=$17 WHERE id=$18`,
+    [data.no_kk, data.nik, data.nama, data.jenis_kelamin, data.tempat_lahir, data.tanggal_lahir, data.agama, data.status, data.hub_keluarga, data.pendidikan, data.pekerjaan, data.nama_ibu, data.nama_ayah, data.alamat, data.rt, data.rw, now, id]
+  );
+}

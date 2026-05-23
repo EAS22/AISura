@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Upload, Download, Trash2, Search } from 'lucide-react'
-import { getAllWarga, importWargaBatch, deleteAllWarga, getWargaCount } from '@/services/wargaService'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Upload, Download, Trash2, Search, Pencil } from 'lucide-react'
+import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, getWargaCount } from '@/services/wargaService'
 import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
 import type { Warga } from '@/types'
@@ -16,6 +18,8 @@ export function DataWarga() {
   const [loading, setLoading] = useState(true)
   const [count, setCount] = useState(0)
   const [page, setPage] = useState(0)
+  const [editModal, setEditModal] = useState(false)
+  const [editData, setEditData] = useState<Partial<Warga>>({})
   const perPage = 50
 
   useEffect(() => { loadData() }, [])
@@ -66,6 +70,26 @@ export function DataWarga() {
     await deleteAllWarga(); await loadData()
   }
 
+  const handleEdit = (w: Warga) => {
+    setEditData({ ...w })
+    setEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editData.id) return
+    try {
+      await updateWarga(editData.id, editData as any)
+      setEditModal(false)
+      await loadData()
+    } catch { alert('Gagal menyimpan') }
+  }
+
+  const handleDeleteSingle = async (id: string) => {
+    if (!confirm('Hapus data warga ini?')) return
+    await deleteWarga(id)
+    await loadData()
+  }
+
   const paginated = filtered.slice(page * perPage, (page + 1) * perPage)
   const totalPages = Math.ceil(filtered.length / perPage)
 
@@ -101,6 +125,7 @@ export function DataWarga() {
                 <TableHead className="w-12">JK</TableHead>
                 <TableHead>Alamat</TableHead>
                 <TableHead className="w-20">RT/RW</TableHead>
+                <TableHead className="w-20 text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -111,11 +136,17 @@ export function DataWarga() {
                   <TableCell>{w.nama}</TableCell>
                   <TableCell>{w.jenis_kelamin === 'Laki-laki' ? 'L' : 'P'}</TableCell>
                   <TableCell className="text-muted-foreground">{w.alamat}</TableCell>
-                  <TableCell className="text-muted-foreground">{w.rt}/{w.rw}</TableCell>
+                  <TableCell className="text-muted-foreground">{w.rt.padStart(3, '0')}/{w.rw.padStart(3, '0')}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(w)}><Pencil className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteSingle(w.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
               {paginated.length === 0 && (
-                <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Tidak ada data</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Tidak ada data</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
@@ -129,6 +160,37 @@ export function DataWarga() {
           <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>Next</Button>
         </div>
       )}
+
+      {/* Edit Modal */}
+      <Dialog open={editModal} onOpenChange={setEditModal}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Data Warga</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Nomor KK</Label><Input value={editData.no_kk || ''} onChange={e => setEditData({ ...editData, no_kk: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">NIK</Label><Input value={editData.nik || ''} onChange={e => setEditData({ ...editData, nik: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1 col-span-2"><Label className="text-xs">Nama</Label><Input value={editData.nama || ''} onChange={e => setEditData({ ...editData, nama: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Jenis Kelamin</Label><Input value={editData.jenis_kelamin || ''} onChange={e => setEditData({ ...editData, jenis_kelamin: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Tempat Lahir</Label><Input value={editData.tempat_lahir || ''} onChange={e => setEditData({ ...editData, tempat_lahir: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Tanggal Lahir</Label><Input value={editData.tanggal_lahir || ''} onChange={e => setEditData({ ...editData, tanggal_lahir: e.target.value })} className="h-8 text-xs" placeholder="dd-mm-yyyy" /></div>
+            <div className="space-y-1"><Label className="text-xs">Agama</Label><Input value={editData.agama || ''} onChange={e => setEditData({ ...editData, agama: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Status</Label><Input value={editData.status || ''} onChange={e => setEditData({ ...editData, status: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Hubungan Keluarga</Label><Input value={editData.hub_keluarga || ''} onChange={e => setEditData({ ...editData, hub_keluarga: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Pendidikan</Label><Input value={editData.pendidikan || ''} onChange={e => setEditData({ ...editData, pendidikan: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Pekerjaan</Label><Input value={editData.pekerjaan || ''} onChange={e => setEditData({ ...editData, pekerjaan: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Nama Ibu</Label><Input value={editData.nama_ibu || ''} onChange={e => setEditData({ ...editData, nama_ibu: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">Nama Ayah</Label><Input value={editData.nama_ayah || ''} onChange={e => setEditData({ ...editData, nama_ayah: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1 col-span-2"><Label className="text-xs">Alamat</Label><Input value={editData.alamat || ''} onChange={e => setEditData({ ...editData, alamat: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">RT</Label><Input value={editData.rt || ''} onChange={e => setEditData({ ...editData, rt: e.target.value })} className="h-8 text-xs" /></div>
+            <div className="space-y-1"><Label className="text-xs">RW</Label><Input value={editData.rw || ''} onChange={e => setEditData({ ...editData, rw: e.target.value })} className="h-8 text-xs" /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditModal(false)}>Batal</Button>
+            <Button onClick={handleSaveEdit}>Simpan</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

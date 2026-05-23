@@ -74,6 +74,10 @@ export function parseExcelOrCsv(buffer: ArrayBuffer): ImportResult {
         continue;
       }
 
+      // Pad RT/RW to 3 digits
+      if (warga.rt) warga.rt = warga.rt.padStart(3, '0');
+      if (warga.rw) warga.rw = warga.rw.padStart(3, '0');
+
       data.push(warga as unknown as Omit<Warga, 'id' | 'created_at' | 'updated_at'>);
     }
 

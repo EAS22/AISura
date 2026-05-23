@@ -183,7 +183,9 @@ function WargaSection({ slot, placeholders, values, onChange }: { slot: string; 
   }
 
   const handleSelect = (w: Warga) => {
-    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: w.rt, RW: w.rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: `${w.alamat} RT ${w.rt} RW ${w.rw}`, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}` }
+    const rt = w.rt.padStart(3, '0')
+    const rw = w.rw.padStart(3, '0')
+    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: `${w.alamat} RT ${rt} RW ${rw}`, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}` }
     for (const p of placeholders) { if (map[p.field]) onChange(p.token, map[p.field]) }
     setShowResults(false); setQuery('')
   }
