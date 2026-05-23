@@ -21,8 +21,6 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   useEffect(() => {
     const customImage = localStorage.getItem('aisura-login-image')
     if (customImage) setLoginImage(customImage)
-
-    // Load desa data for login display
     loadDesaData()
   }, [])
 
@@ -31,7 +29,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
       const { getDataDesa } = await import('@/services/desaService')
       const desa = await getDataDesa()
       if (desa && desa.desa) setDataDesa(desa)
-    } catch { /* ignore - desa data not available yet */ }
+    } catch { /* ignore */ }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,30 +60,30 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* Right overlay with gradient - wider */}
-      <div className="absolute inset-y-0 right-0 w-full sm:w-[520px] bg-gradient-to-l from-background/95 via-background/90 to-transparent" />
+      {/* Right overlay gradient: 90% → 80% → 0%, width 50% */}
+      <div className="absolute inset-y-0 right-0 w-full sm:w-1/2 bg-gradient-to-l from-background/90 via-background/80 to-transparent" />
 
-      {/* Form content - positioned on right, text right-aligned */}
+      {/* Form content - positioned on right, text center-aligned */}
       <div className="relative z-10 flex min-h-svh items-center justify-end">
-        <div className="w-full sm:w-[440px] px-8 sm:px-12 space-y-6 text-right">
+        <div className="w-full sm:w-1/2 px-8 sm:px-16 space-y-6 flex flex-col items-center">
 
           {/* Desa identity (shown only if data exists) */}
           {dataDesa && (
-            <div className="flex items-center gap-3 justify-end">
-              <div className="text-right">
+            <div className="flex flex-col items-center gap-2 text-center">
+              {dataDesa.logo_desa && (
+                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-[52px] w-[52px] object-contain" />
+              )}
+              <div>
                 <p className="text-sm font-semibold text-foreground">Pemerintah Desa {dataDesa.desa}</p>
                 <p className="text-xs text-muted-foreground">
                   {[dataDesa.kecamatan && `Kec. ${dataDesa.kecamatan}`, dataDesa.kabupaten && `Kab. ${dataDesa.kabupaten}`].filter(Boolean).join(', ')}
                 </p>
               </div>
-              {dataDesa.logo_desa && (
-                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 object-contain rounded" />
-              )}
             </div>
           )}
 
           {/* Logo App */}
-          <div className="text-right">
+          <div className="text-center">
             <span className="text-4xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
               <span className="text-primary">AI</span>
               <span className="text-foreground">Sura</span>
@@ -93,46 +91,55 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
             <p className="text-sm text-muted-foreground mt-1">Aplikasi Surat Otomatis Desa</p>
           </div>
 
-          {/* Form */}
-          <div className="space-y-1 text-right">
+          {/* Heading */}
+          <div className="space-y-1 text-center">
             <h2 className="text-xl font-semibold">{isSetup ? 'Buat Password' : 'Selamat Datang'}</h2>
             <p className="text-sm text-muted-foreground">
               {isSetup ? 'Buat password untuk mengamankan aplikasi' : 'Masukkan password untuk melanjutkan'}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 text-left">
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-xs">
             <div className="space-y-2">
-              <Label htmlFor="password">{isSetup ? 'Password Baru' : 'Password'}</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Masukkan password"
-                className="bg-background/80 backdrop-blur-sm"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Masukkan password"
+                  className="bg-background/80 backdrop-blur-sm text-center pr-20"
+                />
+                <Label htmlFor="password" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                  {isSetup ? 'Password' : 'Password'}
+                </Label>
+              </div>
             </div>
             {isSetup && (
               <div className="space-y-2">
-                <Label htmlFor="confirm">Konfirmasi Password</Label>
-                <Input
-                  id="confirm"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="Ulangi password"
-                  className="bg-background/80 backdrop-blur-sm"
-                />
+                <div className="relative">
+                  <Input
+                    id="confirm"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Ulangi password"
+                    className="bg-background/80 backdrop-blur-sm text-center pr-24"
+                  />
+                  <Label htmlFor="confirm" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                    Konfirmasi
+                  </Label>
+                </div>
               </div>
             )}
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {error && <p className="text-sm text-destructive text-center">{error}</p>}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Loading...' : isSetup ? 'Buat Password' : 'Masuk'}
             </Button>
           </form>
 
-          <p className="text-[10px] text-muted-foreground text-right">
+          <p className="text-[10px] text-muted-foreground text-center">
             EAS Creative Studio • v1.0.0
           </p>
         </div>
