@@ -132,7 +132,7 @@ export function BuatSurat() {
       </div>
 
       {wargaSlots.map(slot => (
-        <WargaSection key={slot} slot={slot} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(k, v) => setFormValues({ ...formValues, [k]: v })} dataDesa={dataDesa} />
+        <WargaSection key={slot} slot={slot} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(updates) => setFormValues(prev => ({ ...prev, ...updates }))} dataDesa={dataDesa} />
       ))}
 
       {nomorPlaceholders.length > 0 && (
@@ -152,7 +152,7 @@ export function BuatSurat() {
             {customPlaceholders.map(p => (
               <div key={p.token} className="space-y-1">
                 <Label>{p.field}</Label>
-                <Input value={formValues[p.token] || ''} onChange={e => setFormValues({ ...formValues, [p.token]: e.target.value })} placeholder={`Isi ${p.field}`} />
+                <Input value={formValues[p.token] || ''} onChange={e => setFormValues(prev => ({ ...prev, [p.token]: e.target.value }))} placeholder={`Isi ${p.field}`} />
               </div>
             ))}
           </CardContent>
@@ -162,7 +162,7 @@ export function BuatSurat() {
   )
 }
 
-function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot: string; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (k: string, v: string) => void; dataDesa: DataDesa | null }) {
+function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot: string; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (updates: Record<string, string>) => void; dataDesa: DataDesa | null }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Warga[]>([])
   const [showResults, setShowResults] = useState(false)
@@ -201,7 +201,10 @@ function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot
     const alamatLengkap = alamatParts.join(' ')
 
     const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: alamatLengkap, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}`, KEPALA_KELUARGA: kepalaKeluarga }
-    for (const p of placeholders) { if (p.field in map) onChange(p.token, map[p.field]) }
+    // Batch all updates at once to avoid stale state
+    const updates: Record<string, string> = {}
+    for (const p of placeholders) { if (p.field in map) updates[p.token] = map[p.field] }
+    onChange(updates)
     setShowResults(false); setQuery('')
   }
 
@@ -228,7 +231,7 @@ function WargaSection({ slot, placeholders, values, onChange, dataDesa }: { slot
           {placeholders.map(p => (
             <div key={p.token} className="space-y-1">
               <Label className="text-xs">{p.field}</Label>
-              <Input value={values[p.token] || ''} onChange={e => onChange(p.token, e.target.value)} placeholder={p.field} />
+              <Input value={values[p.token] || ''} onChange={e => onChange({ [p.token]: e.target.value })} placeholder={p.field} />
             </div>
           ))}
         </div>
