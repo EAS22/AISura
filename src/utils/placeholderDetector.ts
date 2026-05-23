@@ -1,15 +1,36 @@
 import type { DetectedPlaceholder, PlaceholderKategori } from '../types';
-import { DESA_TOKENS, NOMOR_SURAT_TOKENS, PERANGKAT_DESA_ALIASES } from '../constants/placeholders';
+import { DESA_TOKENS, NOMOR_SURAT_TOKENS, PERANGKAT_DESA_ALIASES, WARGA_FIELDS, PERANGKAT_DESA_FIELDS } from '../constants/placeholders';
 import type { TextModifier } from './textTransform';
 
 const PLACEHOLDER_REGEX = /\{([A-Z0-9_]+)\}/g;
 const MODIFIER_REGEX = /^(.+?)_(U|L|P)$/;
 
+/**
+ * Strip XML tags and normalize whitespace to get plain text content.
+ * This handles cases where Word splits placeholder text across multiple XML runs.
+ * e.g., <w:t>{W1_</w:t></w:r><w:r><w:t>NAMA}</w:t> → {W1_NAMA}
+ */
+function stripXmlTags(xml: string): string {
+  // First, extract only text within <w:t> or <w:t xml:space="preserve"> tags
+  const textParts: string[] = [];
+  const wtRegex = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g;
+  let m: RegExpExecArray | null;
+  while ((m = wtRegex.exec(xml)) !== null) {
+    textParts.push(m[1]);
+  }
+  // If no <w:t> found, fallback to stripping all tags
+  if (textParts.length === 0) {
+    return xml.replace(/<[^>]+>/g, '');
+  }
+  return textParts.join('');
+}
+
 export function detectPlaceholders(xmlContent: string): DetectedPlaceholder[] {
+  const plainText = stripXmlTags(xmlContent);
   const matches = new Set<string>();
   let match: RegExpExecArray | null;
 
-  while ((match = PLACEHOLDER_REGEX.exec(xmlContent)) !== null) {
+  while ((match = PLACEHOLDER_REGEX.exec(plainText)) !== null) {
     matches.add(match[1]);
   }
 
@@ -18,11 +39,15 @@ export function detectPlaceholders(xmlContent: string): DetectedPlaceholder[] {
   for (const raw of matches) {
     let token = raw;
     let modifier: TextModifier | undefined;
+    
+    // Only check for modifier if token ends with _U, _L, or _P
+    // AND the part before is a recognized full token
     const modMatch = MODIFIER_REGEX.exec(raw);
     if (modMatch) {
       const possibleToken = modMatch[1];
       const possibleMod = modMatch[2] as TextModifier;
-      if (isKnownToken(possibleToken)) {
+      // Verify the base token is actually known (not just prefix match)
+      if (isKnownBaseToken(possibleToken)) {
         token = possibleToken;
         modifier = possibleMod;
       }
@@ -41,6 +66,26 @@ export function detectPlaceholders(xmlContent: string): DetectedPlaceholder[] {
 function isKnownToken(token: string): boolean {
   if (/^W\d+_/.test(token)) return true;
   if (/^PD\d+_/.test(token)) return true;
+  if (DESA_TOKENS.includes(token)) return true;
+  if (NOMOR_SURAT_TOKENS.includes(token)) return true;
+  if (token in PERANGKAT_DESA_ALIASES) return true;
+  return false;
+}
+
+/**
+ * Stricter check: verify the field part (after prefix) is a known field name.
+ * This prevents false modifier detection like W1_ALAMAT_LENGKAP being split into
+ * token="W1_ALAMAT_LENGKA" + modifier="P"
+ */
+function isKnownBaseToken(token: string): boolean {
+  const wargaMatch = token.match(/^W\d+_(.+)$/);
+  if (wargaMatch) {
+    return (WARGA_FIELDS as readonly string[]).includes(wargaMatch[1]);
+  }
+  const pdMatch = token.match(/^PD\d+_(.+)$/);
+  if (pdMatch) {
+    return (PERANGKAT_DESA_FIELDS as readonly string[]).includes(pdMatch[1]);
+  }
   if (DESA_TOKENS.includes(token)) return true;
   if (NOMOR_SURAT_TOKENS.includes(token)) return true;
   if (token in PERANGKAT_DESA_ALIASES) return true;
