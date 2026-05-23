@@ -75,6 +75,7 @@ export async function initDatabase(): Promise<Database> {
       file_path TEXT,
       placeholders TEXT,
       warga_count INTEGER DEFAULT 0,
+      prefix_surat TEXT DEFAULT '',
       created_at TEXT,
       updated_at TEXT
     )

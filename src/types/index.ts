@@ -62,6 +62,7 @@ export interface TemplateSurat {
   file_path: string;
   placeholders: string;
   warga_count: number;
+  prefix_surat: string;
   created_at: string;
   updated_at: string;
 }

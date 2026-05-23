@@ -34,8 +34,9 @@ export const DESA_PLACEHOLDERS: PlaceholderDefinition[] = [
 ];
 
 export const NOMOR_SURAT_PLACEHOLDERS: PlaceholderDefinition[] = [
-  { token: 'NOMOR_SURAT', kategori: 'nomor_surat', deskripsi: 'Nomor surat lengkap (hasil format)', contoh: '001/DS-CKD/V/2026' },
+  { token: 'NOMOR_SURAT', kategori: 'nomor_surat', deskripsi: 'Nomor surat lengkap (hasil format)', contoh: '001/SKD/DS-CKD/V/2026' },
   { token: 'S_NOMOR', kategori: 'nomor_surat', deskripsi: 'Nomor urut 3 digit', contoh: '001' },
+  { token: 'S_PREFIX', kategori: 'nomor_surat', deskripsi: 'Prefix surat (dari template)', contoh: 'SKD' },
   { token: 'S_BULAN', kategori: 'nomor_surat', deskripsi: 'Bulan 2 digit', contoh: '05' },
   { token: 'S_BULAN_ROM', kategori: 'nomor_surat', deskripsi: 'Bulan romawi', contoh: 'V' },
   { token: 'S_TAHUN', kategori: 'nomor_surat', deskripsi: 'Tahun 4 digit', contoh: '2026' },

@@ -48,6 +48,9 @@ function SidebarLogo() {
           </>
         )}
       </span>
+      {!isCollapsed && (
+        <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded">v1.0.0</span>
+      )}
     </div>
   )
 }
@@ -60,10 +63,7 @@ function SidebarFooterContent() {
 
   return (
     <div className="px-2 py-1 text-[10px] text-muted-foreground">
-      <span style={{ fontFamily: "'Unica One', cursive" }}>
-        <span className="text-primary">AI</span>Sura
-      </span>
-      {' '}v1.0.0 • EAS Creative Studio
+      EAS Creative Studio
     </div>
   )
 }

@@ -13,12 +13,14 @@ export interface NomorSuratParts {
   S_TAHUN: string;
   S_KODE_DESA: string;
   S_TANGGAL: string;
+  S_PREFIX: string;
 }
 
 export function generateNomorSuratParts(
   format: string,
   counter: number,
   kodeDesa: string,
+  prefix: string = '',
   date: Date = new Date()
 ): NomorSuratParts {
   const nomor = counter.toString().padStart(3, '0');
@@ -34,6 +36,7 @@ export function generateNomorSuratParts(
     S_TAHUN: tahun,
     S_KODE_DESA: kodeDesa,
     S_TANGGAL: tanggal,
+    S_PREFIX: prefix,
     NOMOR_SURAT: '',
   };
 
@@ -43,6 +46,7 @@ export function generateNomorSuratParts(
   result = result.replace('{S_BULAN_ROM}', bulanRom);
   result = result.replace('{S_TAHUN}', tahun);
   result = result.replace('{S_KODE_DESA}', kodeDesa);
+  result = result.replace('{S_PREFIX}', prefix);
   parts.NOMOR_SURAT = result;
 
   return parts;

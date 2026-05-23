@@ -31,7 +31,7 @@ export function NomorSuratPage() {
     } catch { alert('Gagal') }
   }
 
-  const preview = generateNomorSuratParts(format, counter, kodeDesa)
+  const preview = generateNomorSuratParts(format, counter, kodeDesa, 'SKD')
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
@@ -45,7 +45,7 @@ export function NomorSuratPage() {
           <div className="space-y-1">
             <Label>Format Nomor Surat</Label>
             <Input value={format} onChange={e => setFormat(e.target.value)} />
-            <p className="text-[10px] text-muted-foreground">Gunakan: {'{S_NOMOR}'}, {'{S_KODE_DESA}'}, {'{S_BULAN_ROM}'}, {'{S_TAHUN}'}</p>
+            <p className="text-[10px] text-muted-foreground">Gunakan: {'{S_NOMOR}'}, {'{S_PREFIX}'}, {'{S_KODE_DESA}'}, {'{S_BULAN_ROM}'}, {'{S_TAHUN}'}</p>
           </div>
           <div className="space-y-1">
             <Label>Kode Desa</Label>

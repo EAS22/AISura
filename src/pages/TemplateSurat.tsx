@@ -13,6 +13,7 @@ export function TemplateSuratPage() {
   const [showUpload, setShowUpload] = useState(false)
   const [uploadNama, setUploadNama] = useState('')
   const [uploadDeskripsi, setUploadDeskripsi] = useState('')
+  const [uploadPrefix, setUploadPrefix] = useState('')
 
   useEffect(() => { loadTemplates() }, [])
 
@@ -31,8 +32,8 @@ export function TemplateSuratPage() {
       if (!filePath) return
       const bytes = await readFile(filePath as string)
       const svc = await import('@/services/templateService')
-      await svc.uploadTemplate(bytes, uploadNama || 'Template Baru', uploadDeskripsi)
-      setShowUpload(false); setUploadNama(''); setUploadDeskripsi('')
+      await svc.uploadTemplate(bytes, uploadNama || 'Template Baru', uploadDeskripsi, uploadPrefix)
+      setShowUpload(false); setUploadNama(''); setUploadDeskripsi(''); setUploadPrefix('')
       await loadTemplates()
     } catch (err) { alert('Gagal upload'); console.error(err) }
   }
@@ -70,6 +71,11 @@ export function TemplateSuratPage() {
             <div className="space-y-1">
               <Label>Deskripsi</Label>
               <Input value={uploadDeskripsi} onChange={e => setUploadDeskripsi(e.target.value)} placeholder="Deskripsi singkat" />
+            </div>
+            <div className="space-y-1">
+              <Label>Prefix Surat</Label>
+              <Input value={uploadPrefix} onChange={e => setUploadPrefix(e.target.value)} placeholder="SKD, SKU, SP, dll." />
+              <p className="text-[10px] text-muted-foreground">Prefix untuk nomor surat (placeholder {'{S_PREFIX}'})</p>
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={handleUpload}>Pilih File & Upload</Button>

@@ -32,7 +32,8 @@ export async function getTemplateById(id: string): Promise<TemplateSurat | null>
 export async function uploadTemplate(
   fileBytes: Uint8Array,
   nama: string,
-  deskripsi: string
+  deskripsi: string,
+  prefixSurat: string = ''
 ): Promise<TemplateSurat> {
   const id = uuid();
   const filename = `${id}.docx`;
@@ -46,15 +47,15 @@ export async function uploadTemplate(
   const now = new Date().toISOString();
 
   await execute(
-    `INSERT INTO templates (id, nama, deskripsi, file_path, placeholders, warga_count, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [id, nama, deskripsi, filePath, JSON.stringify(placeholders), wargaCount, now, now]
+    `INSERT INTO templates (id, nama, deskripsi, file_path, placeholders, warga_count, prefix_surat, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [id, nama, deskripsi, filePath, JSON.stringify(placeholders), wargaCount, prefixSurat, now, now]
   );
 
   return {
     id, nama, deskripsi, file_path: filePath,
     placeholders: JSON.stringify(placeholders),
-    warga_count: wargaCount, created_at: now, updated_at: now,
+    warga_count: wargaCount, prefix_surat: prefixSurat, created_at: now, updated_at: now,
   };
 }
 

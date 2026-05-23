@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Sun, Moon, User, LogOut, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,9 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
   const { theme, setTheme } = useTheme()
   const { currentPath, navigate } = useNavigationContext()
   const [clock, setClock] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const update = () => {
@@ -54,6 +57,26 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
     const timer = setInterval(update, 1000)
     return () => clearInterval(timer)
   }, [])
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const allPages = Object.entries(PAGE_TITLES).map(([path, title]) => ({ path, title }))
+  const filteredPages = searchQuery.length > 0
+    ? allPages.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : []
+
+  const handleSearchSelect = (path: string) => {
+    navigate(path)
+    setSearchQuery('')
+    setSearchOpen(false)
+  }
 
   const breadcrumb = BREADCRUMBS[currentPath]
   const pageTitle = PAGE_TITLES[currentPath] || 'Dashboard'
@@ -80,9 +103,28 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
       <div className="flex-1" />
 
       {/* Search */}
-      <div className="relative hidden md:block w-56">
+      <div className="relative hidden md:block w-56" ref={searchRef}>
         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Cari halaman..." className="pl-8 h-9" />
+        <Input
+          placeholder="Cari halaman..."
+          className="pl-8 h-9"
+          value={searchQuery}
+          onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
+          onFocus={() => { if (searchQuery) setSearchOpen(true) }}
+        />
+        {searchOpen && filteredPages.length > 0 && (
+          <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50 overflow-hidden">
+            {filteredPages.map(p => (
+              <button
+                key={p.path}
+                onClick={() => handleSearchSelect(p.path)}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors ${p.path === currentPath ? 'bg-accent/50 font-medium' : ''}`}
+              >
+                {p.title}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Dark mode toggle */}

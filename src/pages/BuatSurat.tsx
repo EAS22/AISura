@@ -65,7 +65,7 @@ export function BuatSurat() {
       const config = await getNomorSuratConfig()
       if (!config) { alert('Konfigurasi nomor surat belum diatur'); return }
       const nomorUrut = await incrementCounter()
-      const parts = generateNomorSuratParts(config.format, nomorUrut, config.kode_desa)
+      const parts = generateNomorSuratParts(config.format, nomorUrut, config.kode_desa, selectedTemplate!.prefix_surat || '')
       const finalValues = { ...formValues }
       for (const p of placeholders) {
         if (p.kategori === 'nomor_surat') {
