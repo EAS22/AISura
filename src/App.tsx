@@ -5,6 +5,15 @@ import { useAuth } from './hooks/useAuth';
 import { Layout } from './components/layout/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
+import { BuatSurat } from './pages/BuatSurat';
+import { TemplateSuratPage } from './pages/TemplateSurat';
+import { PlaceholderPage } from './pages/Placeholder';
+import { DataWarga } from './pages/DataWarga';
+import { RiwayatSuratPage } from './pages/RiwayatSurat';
+import { DataDesaPage } from './pages/pengaturan/DataDesa';
+import { NomorSuratPage } from './pages/pengaturan/NomorSurat';
+import { AplikasiPage } from './pages/pengaturan/Aplikasi';
+import { Profil } from './pages/Profil';
 import type { PageId } from './types';
 
 function App() {
@@ -27,7 +36,6 @@ function App() {
         setIsReady(true);
       } catch (error) {
         console.error('Failed to initialize:', error);
-        // In dev mode without Tauri, show app anyway
         setStatus('setup');
         setIsReady(true);
       }
@@ -39,7 +47,7 @@ function App() {
     try {
       const name = await getDisplayName();
       setDisplayName(name);
-    } catch {}
+    } catch { /* ignore */ }
     setStatus('authenticated');
   };
 
@@ -68,10 +76,17 @@ function App() {
 
   const renderPage = () => {
     switch (currentPage) {
-      case 'dashboard':
-        return <Dashboard />;
-      default:
-        return <Dashboard />;
+      case 'dashboard': return <Dashboard />;
+      case 'buat-surat': return <BuatSurat />;
+      case 'template-surat': return <TemplateSuratPage />;
+      case 'placeholder': return <PlaceholderPage />;
+      case 'data-warga': return <DataWarga />;
+      case 'riwayat-surat': return <RiwayatSuratPage />;
+      case 'pengaturan-data-desa': return <DataDesaPage />;
+      case 'pengaturan-nomor-surat': return <NomorSuratPage />;
+      case 'pengaturan-aplikasi': return <AplikasiPage />;
+      case 'profil': return <Profil />;
+      default: return <Dashboard />;
     }
   };
 
