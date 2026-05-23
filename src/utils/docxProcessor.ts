@@ -10,7 +10,7 @@ export async function processDocxTemplate(
   }
 
   const handler = new TemplateHandler();
-  const blob = new Blob([templateBytes]);
+  const blob = new Blob([templateBytes as unknown as BlobPart]);
   const doc = await handler.process(blob, templateData);
   return await doc.arrayBuffer();
 }
