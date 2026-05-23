@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Upload, Download, Trash2, Search, Pencil } from 'lucide-react'
-import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, getWargaCount } from '@/services/wargaService'
+import { Upload, Download, Trash2, Search, Pencil, Plus } from 'lucide-react'
+import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, addWarga, getWargaCount } from '@/services/wargaService'
 import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
 import type { Warga } from '@/types'
@@ -20,6 +20,8 @@ export function DataWarga() {
   const [page, setPage] = useState(0)
   const [editModal, setEditModal] = useState(false)
   const [editData, setEditData] = useState<Partial<Warga>>({})
+  const [addModal, setAddModal] = useState(false)
+  const [addData, setAddData] = useState<Partial<Warga>>({})
   const perPage = 50
 
   useEffect(() => { loadData() }, [])
@@ -90,6 +92,16 @@ export function DataWarga() {
     await loadData()
   }
 
+  const handleAddWarga = async () => {
+    if (!addData.nik || !addData.nama) { alert('NIK dan Nama wajib diisi'); return }
+    try {
+      await addWarga(addData as Omit<Warga, 'id' | 'created_at' | 'updated_at'>)
+      setAddModal(false)
+      setAddData({})
+      await loadData()
+    } catch { alert('Gagal menambah warga') }
+  }
+
   const paginated = filtered.slice(page * perPage, (page + 1) * perPage)
   const totalPages = Math.ceil(filtered.length / perPage)
 
@@ -104,7 +116,8 @@ export function DataWarga() {
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={handleDownloadTemplate}><Download className="mr-1 h-3.5 w-3.5" />Template</Button>
-          <Button size="sm" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
+          <Button size="sm" variant="outline" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
+          <Button size="sm" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
           {count > 0 && <Button size="sm" variant="destructive" onClick={handleDeleteAll}><Trash2 className="mr-1 h-3.5 w-3.5" />Hapus Semua</Button>}
         </div>
       </div>
@@ -167,30 +180,50 @@ export function DataWarga() {
           <DialogHeader>
             <DialogTitle>Edit Data Warga</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1"><Label className="text-xs">Nomor KK</Label><Input value={editData.no_kk || ''} onChange={e => setEditData({ ...editData, no_kk: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">NIK</Label><Input value={editData.nik || ''} onChange={e => setEditData({ ...editData, nik: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1 col-span-2"><Label className="text-xs">Nama</Label><Input value={editData.nama || ''} onChange={e => setEditData({ ...editData, nama: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Jenis Kelamin</Label><Input value={editData.jenis_kelamin || ''} onChange={e => setEditData({ ...editData, jenis_kelamin: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Tempat Lahir</Label><Input value={editData.tempat_lahir || ''} onChange={e => setEditData({ ...editData, tempat_lahir: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Tanggal Lahir</Label><Input value={editData.tanggal_lahir || ''} onChange={e => setEditData({ ...editData, tanggal_lahir: e.target.value })} className="h-8 text-xs" placeholder="dd-mm-yyyy" /></div>
-            <div className="space-y-1"><Label className="text-xs">Agama</Label><Input value={editData.agama || ''} onChange={e => setEditData({ ...editData, agama: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Status</Label><Input value={editData.status || ''} onChange={e => setEditData({ ...editData, status: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Hubungan Keluarga</Label><Input value={editData.hub_keluarga || ''} onChange={e => setEditData({ ...editData, hub_keluarga: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Pendidikan</Label><Input value={editData.pendidikan || ''} onChange={e => setEditData({ ...editData, pendidikan: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Pekerjaan</Label><Input value={editData.pekerjaan || ''} onChange={e => setEditData({ ...editData, pekerjaan: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Nama Ibu</Label><Input value={editData.nama_ibu || ''} onChange={e => setEditData({ ...editData, nama_ibu: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">Nama Ayah</Label><Input value={editData.nama_ayah || ''} onChange={e => setEditData({ ...editData, nama_ayah: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1 col-span-2"><Label className="text-xs">Alamat</Label><Input value={editData.alamat || ''} onChange={e => setEditData({ ...editData, alamat: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">RT</Label><Input value={editData.rt || ''} onChange={e => setEditData({ ...editData, rt: e.target.value })} className="h-8 text-xs" /></div>
-            <div className="space-y-1"><Label className="text-xs">RW</Label><Input value={editData.rw || ''} onChange={e => setEditData({ ...editData, rw: e.target.value })} className="h-8 text-xs" /></div>
-          </div>
+          <WargaFormFields data={editData} onChange={setEditData} />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModal(false)}>Batal</Button>
             <Button onClick={handleSaveEdit}>Simpan</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add Modal */}
+      <Dialog open={addModal} onOpenChange={setAddModal}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Tambah Data Warga</DialogTitle>
+          </DialogHeader>
+          <WargaFormFields data={addData} onChange={setAddData} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAddModal(false); setAddData({}) }}>Batal</Button>
+            <Button onClick={handleAddWarga}>Tambah</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function WargaFormFields({ data, onChange }: { data: Partial<Warga>; onChange: (d: Partial<Warga>) => void }) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-1"><Label className="text-xs">Nomor KK</Label><Input value={data.no_kk || ''} onChange={e => onChange({ ...data, no_kk: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">NIK</Label><Input value={data.nik || ''} onChange={e => onChange({ ...data, nik: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1 col-span-2"><Label className="text-xs">Nama</Label><Input value={data.nama || ''} onChange={e => onChange({ ...data, nama: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Jenis Kelamin</Label><Input value={data.jenis_kelamin || ''} onChange={e => onChange({ ...data, jenis_kelamin: e.target.value })} className="h-8 text-xs" placeholder="Laki-laki / Perempuan" /></div>
+      <div className="space-y-1"><Label className="text-xs">Tempat Lahir</Label><Input value={data.tempat_lahir || ''} onChange={e => onChange({ ...data, tempat_lahir: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Tanggal Lahir</Label><Input value={data.tanggal_lahir || ''} onChange={e => onChange({ ...data, tanggal_lahir: e.target.value })} className="h-8 text-xs" placeholder="dd-mm-yyyy" /></div>
+      <div className="space-y-1"><Label className="text-xs">Agama</Label><Input value={data.agama || ''} onChange={e => onChange({ ...data, agama: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Status</Label><Input value={data.status || ''} onChange={e => onChange({ ...data, status: e.target.value })} className="h-8 text-xs" placeholder="Kawin / Belum Kawin" /></div>
+      <div className="space-y-1"><Label className="text-xs">Hubungan Keluarga</Label><Input value={data.hub_keluarga || ''} onChange={e => onChange({ ...data, hub_keluarga: e.target.value })} className="h-8 text-xs" placeholder="Kepala Keluarga / Istri / Anak" /></div>
+      <div className="space-y-1"><Label className="text-xs">Pendidikan</Label><Input value={data.pendidikan || ''} onChange={e => onChange({ ...data, pendidikan: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Pekerjaan</Label><Input value={data.pekerjaan || ''} onChange={e => onChange({ ...data, pekerjaan: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Nama Ibu</Label><Input value={data.nama_ibu || ''} onChange={e => onChange({ ...data, nama_ibu: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">Nama Ayah</Label><Input value={data.nama_ayah || ''} onChange={e => onChange({ ...data, nama_ayah: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1 col-span-2"><Label className="text-xs">Alamat</Label><Input value={data.alamat || ''} onChange={e => onChange({ ...data, alamat: e.target.value })} className="h-8 text-xs" /></div>
+      <div className="space-y-1"><Label className="text-xs">RT</Label><Input value={data.rt || ''} onChange={e => onChange({ ...data, rt: e.target.value })} className="h-8 text-xs" placeholder="001" /></div>
+      <div className="space-y-1"><Label className="text-xs">RW</Label><Input value={data.rw || ''} onChange={e => onChange({ ...data, rw: e.target.value })} className="h-8 text-xs" placeholder="001" /></div>
     </div>
   )
 }

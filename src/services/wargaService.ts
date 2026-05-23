@@ -52,6 +52,17 @@ export async function deleteAllWarga(): Promise<void> {
   await execute('DELETE FROM warga');
 }
 
+export async function addWarga(data: Omit<Warga, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
+  const id = uuid();
+  const now = new Date().toISOString();
+  await execute(
+    `INSERT INTO warga (id, no_kk, nik, nama, jenis_kelamin, tempat_lahir, tanggal_lahir, agama, status, hub_keluarga, pendidikan, pekerjaan, nama_ibu, nama_ayah, alamat, rt, rw, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)`,
+    [id, data.no_kk, data.nik, data.nama, data.jenis_kelamin, data.tempat_lahir, data.tanggal_lahir, data.agama, data.status, data.hub_keluarga, data.pendidikan, data.pekerjaan, data.nama_ibu, data.nama_ayah, data.alamat, data.rt?.padStart(3, '0'), data.rw?.padStart(3, '0'), now, now]
+  );
+  return id;
+}
+
 export async function deleteWarga(id: string): Promise<void> {
   await execute('DELETE FROM warga WHERE id = $1', [id]);
 }
