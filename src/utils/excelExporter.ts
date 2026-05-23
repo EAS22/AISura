@@ -7,6 +7,9 @@ export function exportRiwayatToExcel(riwayatList: RiwayatSurat[]): ArrayBuffer {
     'Tanggal': r.tanggal_generate,
     'Nomor Surat': r.nomor_surat,
     'Template': r.template_nama,
+    'Pemohon': r.pemohon_nama || '',
+    'NIK Pemohon': r.pemohon_nik || '',
+    'Alamat Pemohon': r.pemohon_alamat || '',
   }));
 
   const worksheet = XLSX.utils.json_to_sheet(data);
@@ -17,6 +20,9 @@ export function exportRiwayatToExcel(riwayatList: RiwayatSurat[]): ArrayBuffer {
     { wch: 5 },
     { wch: 20 },
     { wch: 30 },
+    { wch: 30 },
+    { wch: 25 },
+    { wch: 20 },
     { wch: 40 },
   ];
 

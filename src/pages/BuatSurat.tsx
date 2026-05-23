@@ -79,7 +79,13 @@ export function BuatSurat() {
       const result = await processDocxTemplate(templateBytes, finalValues)
       const filename = `${selectedTemplate!.nama.replace(/\s+/g, '_')}_${parts.S_NOMOR}.docx`
       await downloadDocx(result, filename)
-      await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, nomorOverride || parts.NOMOR_SURAT, nomorUrut, finalValues)
+      // Extract pemohon data (W1) for riwayat
+      const pemohon = {
+        nama: finalValues['W1_NAMA'] || '',
+        nik: finalValues['W1_NIK'] || '',
+        alamat: finalValues['W1_ALAMAT_LENGKAP'] || finalValues['W1_ALAMAT'] || '',
+      }
+      await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, nomorOverride || parts.NOMOR_SURAT, nomorUrut, finalValues, pemohon)
       alert('Surat berhasil di-generate!')
       setStep('select'); setSelectedTemplate(null); setFormValues({}); setNomorOverride('')
     } catch (err) { alert('Gagal generate surat'); console.error(err) }
@@ -87,16 +93,30 @@ export function BuatSurat() {
 
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
+  const [templateSearch, setTemplateSearch] = useState('')
+
   if (step === 'select') {
+    const filteredTemplates = templateSearch
+      ? templates.filter(t => t.nama.toLowerCase().includes(templateSearch.toLowerCase()))
+      : templates
+
     return (
       <div className="space-y-4">
         <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
         <p className="text-sm text-muted-foreground">Pilih template surat</p>
-        {templates.length === 0 ? (
-          <Card><CardContent className="py-8 text-center text-muted-foreground">Belum ada template.</CardContent></Card>
+
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Cari template..." value={templateSearch} onChange={e => setTemplateSearch(e.target.value)} className="pl-8" />
+        </div>
+
+        {filteredTemplates.length === 0 ? (
+          <Card><CardContent className="py-8 text-center text-muted-foreground">
+            {templates.length === 0 ? 'Belum ada template.' : 'Template tidak ditemukan.'}
+          </CardContent></Card>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
-            {templates.map(t => (
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {filteredTemplates.map(t => (
               <Card key={t.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => handleSelectTemplate(t)}>
                 <CardContent className="py-3">
                   <h3 className="font-medium">{t.nama}</h3>
@@ -119,17 +139,23 @@ export function BuatSurat() {
   const nomorPlaceholders = placeholders.filter(p => p.kategori === 'nomor_surat')
 
   return (
-    <div className="space-y-4 max-w-3xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
-          <p className="text-sm text-muted-foreground">Template: {selectedTemplate?.nama}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => { setStep('select'); setSelectedTemplate(null) }}>Kembali</Button>
-          <Button size="sm" onClick={handleGenerate}><Download className="mr-1 h-3.5 w-3.5" />Generate & Download</Button>
+    <div className="flex flex-col h-[calc(100vh-theme(spacing.16))] max-w-3xl">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-background pb-3 border-b mb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
+            <p className="text-sm text-muted-foreground">Template: {selectedTemplate?.nama}</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => { setStep('select'); setSelectedTemplate(null) }}>Kembali</Button>
+            <Button size="sm" onClick={handleGenerate}><Download className="mr-1 h-3.5 w-3.5" />Generate & Download</Button>
+          </div>
         </div>
       </div>
+
+      {/* Scrollable form area */}
+      <div className="flex-1 overflow-y-auto space-y-4 pb-4">
 
       {wargaSlots.map(slot => (
         <WargaSection key={slot} slot={slot} placeholders={placeholders.filter(p => p.slot === slot)} values={formValues} onChange={(updates) => setFormValues(prev => ({ ...prev, ...updates }))} dataDesa={dataDesa} />
@@ -158,6 +184,7 @@ export function BuatSurat() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   )
 }

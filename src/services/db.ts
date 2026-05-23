@@ -125,11 +125,19 @@ export async function initDatabase(): Promise<Database> {
       template_nama TEXT,
       nomor_surat TEXT,
       nomor_urut INTEGER,
+      pemohon_nama TEXT DEFAULT '',
+      pemohon_nik TEXT DEFAULT '',
+      pemohon_alamat TEXT DEFAULT '',
       tanggal_generate TEXT,
       created_at TEXT,
       FOREIGN KEY (template_id) REFERENCES templates(id)
     )
   `);
+
+  // Migration: add pemohon columns if missing
+  try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN pemohon_nama TEXT DEFAULT ''`); } catch {}
+  try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN pemohon_nik TEXT DEFAULT ''`); } catch {}
+  try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN pemohon_alamat TEXT DEFAULT ''`); } catch {}
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS riwayat_surat_data (

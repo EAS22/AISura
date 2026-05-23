@@ -28,15 +28,16 @@ export async function saveRiwayat(
   templateNama: string,
   nomorSurat: string,
   nomorUrut: number,
-  placeholderData: Record<string, string>
+  placeholderData: Record<string, string>,
+  pemohon?: { nama: string; nik: string; alamat: string }
 ): Promise<string> {
   const id = uuid();
   const now = new Date().toISOString();
 
   await execute(
-    `INSERT INTO riwayat_surat (id, template_id, template_nama, nomor_surat, nomor_urut, tanggal_generate, created_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-    [id, templateId, templateNama, nomorSurat, nomorUrut, now, now]
+    `INSERT INTO riwayat_surat (id, template_id, template_nama, nomor_surat, nomor_urut, pemohon_nama, pemohon_nik, pemohon_alamat, tanggal_generate, created_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id, templateId, templateNama, nomorSurat, nomorUrut, pemohon?.nama || '', pemohon?.nik || '', pemohon?.alamat || '', now, now]
   );
 
   for (const [key, value] of Object.entries(placeholderData)) {

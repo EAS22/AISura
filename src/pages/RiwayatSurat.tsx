@@ -82,6 +82,8 @@ export function RiwayatSuratPage() {
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Nomor Surat</TableHead>
                 <TableHead>Template</TableHead>
+                <TableHead>Pemohon</TableHead>
+                <TableHead>NIK</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -92,6 +94,8 @@ export function RiwayatSuratPage() {
                   <TableCell className="text-muted-foreground">{new Date(r.tanggal_generate).toLocaleDateString('id-ID')}</TableCell>
                   <TableCell className="font-mono text-xs">{r.nomor_surat}</TableCell>
                   <TableCell>{r.template_nama}</TableCell>
+                  <TableCell>{r.pemohon_nama || '-'}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.pemohon_nik || '-'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7"><RotateCcw className="h-3.5 w-3.5" /></Button>
@@ -101,7 +105,7 @@ export function RiwayatSuratPage() {
                 </TableRow>
               ))}
               {filtered.length === 0 && (
-                <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Belum ada riwayat surat</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Belum ada riwayat surat</TableCell></TableRow>
               )}
             </TableBody>
           </Table>
