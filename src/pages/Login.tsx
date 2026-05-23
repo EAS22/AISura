@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createPassword, verifyPassword } from '@/services/authService'
+import type { DataDesa } from '@/types'
 
 interface LoginProps {
   isSetup: boolean
@@ -15,11 +16,23 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [loginImage, setLoginImage] = useState('/images/login-illustration.png')
+  const [dataDesa, setDataDesa] = useState<Partial<DataDesa> | null>(null)
 
   useEffect(() => {
     const customImage = localStorage.getItem('aisura-login-image')
     if (customImage) setLoginImage(customImage)
+
+    // Load desa data for login display
+    loadDesaData()
   }, [])
+
+  const loadDesaData = async () => {
+    try {
+      const { getDataDesa } = await import('@/services/desaService')
+      const desa = await getDataDesa()
+      if (desa && desa.desa) setDataDesa(desa)
+    } catch { /* ignore - desa data not available yet */ }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -49,13 +62,29 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* Left overlay with gradient */}
-      <div className="absolute inset-y-0 left-0 w-full sm:w-[420px] bg-gradient-to-r from-background/95 via-background/85 to-transparent" />
+      {/* Right overlay with gradient */}
+      <div className="absolute inset-y-0 right-0 w-full sm:w-[450px] bg-gradient-to-l from-background/95 via-background/90 to-transparent" />
 
-      {/* Form content - positioned on left */}
-      <div className="relative z-10 flex min-h-svh items-center px-8 sm:px-12 max-w-[400px]">
-        <div className="w-full space-y-6">
-          {/* Logo */}
+      {/* Form content - positioned on right */}
+      <div className="relative z-10 flex min-h-svh items-center justify-end">
+        <div className="w-full sm:w-[400px] px-8 sm:px-12 space-y-6">
+
+          {/* Desa identity (shown only if data exists) */}
+          {dataDesa && (
+            <div className="flex items-center gap-3">
+              {dataDesa.logo_desa && (
+                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 object-contain rounded" />
+              )}
+              <div>
+                <p className="text-sm font-semibold text-foreground">Pemerintah Desa {dataDesa.desa}</p>
+                <p className="text-xs text-muted-foreground">
+                  {[dataDesa.kecamatan && `Kec. ${dataDesa.kecamatan}`, dataDesa.kabupaten && `Kab. ${dataDesa.kabupaten}`].filter(Boolean).join(', ')}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Logo App */}
           <div>
             <span className="text-4xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
               <span className="text-primary">AI</span>

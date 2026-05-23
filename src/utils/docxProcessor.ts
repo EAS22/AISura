@@ -1,7 +1,9 @@
 import { TemplateHandler, type TemplateData } from 'easy-template-x';
 
 /**
- * Convert base64 data URL to binary data for easy-template-x image plugin
+ * Convert base64 data URL to binary data for easy-template-x image plugin.
+ * Width is set to full A4 content width (approx 595 points for borderless, 451 for standard margins).
+ * Height is auto-calculated to maintain aspect ratio based on a default ratio.
  */
 function base64ToImageData(dataUrl: string): { source: ArrayBuffer; format: string; width: number; height: number } | null {
   if (!dataUrl || !dataUrl.startsWith('data:image/')) return null;
@@ -9,10 +11,9 @@ function base64ToImageData(dataUrl: string): { source: ArrayBuffer; format: stri
   const match = dataUrl.match(/^data:image\/(png|jpeg|jpg|gif|bmp|webp);base64,(.+)$/);
   if (!match) return null;
 
-  // easy-template-x requires full mime type: "image/png", "image/jpeg", etc.
   let mimeType = `image/${match[1]}`;
   if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
-  if (mimeType === 'image/webp') mimeType = 'image/png'; // fallback unsupported
+  if (mimeType === 'image/webp') mimeType = 'image/png';
 
   const base64 = match[2];
   const binary = atob(base64);
@@ -21,11 +22,39 @@ function base64ToImageData(dataUrl: string): { source: ArrayBuffer; format: stri
     bytes[i] = binary.charCodeAt(i);
   }
 
+  // Try to get image dimensions from PNG header
+  let width = 595; // A4 full width in points (no margin)
+  let height = 100;
+
+  if (mimeType === 'image/png' && bytes.length > 24) {
+    // PNG: width at offset 16 (4 bytes big-endian), height at offset 20
+    const imgWidth = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+    const imgHeight = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
+    if (imgWidth > 0 && imgHeight > 0) {
+      // Scale to fit page width (595 points), maintain aspect ratio
+      height = Math.round((595 / imgWidth) * imgHeight);
+      width = 595;
+    }
+  } else if (mimeType === 'image/jpeg' && bytes.length > 4) {
+    // JPEG: scan for SOF0 marker (0xFF 0xC0) to get dimensions
+    for (let i = 0; i < bytes.length - 9; i++) {
+      if (bytes[i] === 0xFF && (bytes[i + 1] === 0xC0 || bytes[i + 1] === 0xC2)) {
+        const imgHeight = (bytes[i + 5] << 8) | bytes[i + 6];
+        const imgWidth = (bytes[i + 7] << 8) | bytes[i + 8];
+        if (imgWidth > 0 && imgHeight > 0) {
+          height = Math.round((595 / imgWidth) * imgHeight);
+          width = 595;
+        }
+        break;
+      }
+    }
+  }
+
   return {
     source: bytes.buffer as ArrayBuffer,
     format: mimeType,
-    width: 600,
-    height: 100,
+    width,
+    height,
   };
 }
 
