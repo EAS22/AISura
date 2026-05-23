@@ -14,6 +14,8 @@ export function PlaceholderPage() {
   const [selectedToken, setSelectedToken] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [copied, setCopied] = useState('')
+  const [wargaNumber, setWargaNumber] = useState('1')
+  const [modalStep, setModalStep] = useState<'number' | 'suffix'>('suffix')
 
   const filter = (token: string, desc: string) => {
     if (!search) return true
@@ -23,8 +25,20 @@ export function PlaceholderPage() {
 
   const handleCardClick = (token: string) => {
     setSelectedToken(token)
-    setModalOpen(true)
     setCopied('')
+    // Check if token has "Wn" or "PDn" prefix — need number input first
+    const inner = token.replace(/^\{|\}$/g, '')
+    if (/^Wn_/.test(inner) || /^PDn_/.test(inner)) {
+      setWargaNumber('1')
+      setModalStep('number')
+    } else {
+      setModalStep('suffix')
+    }
+    setModalOpen(true)
+  }
+
+  const handleNumberConfirm = () => {
+    setModalStep('suffix')
   }
 
   const handleCopy = (text: string) => {
@@ -33,8 +47,15 @@ export function PlaceholderPage() {
     setTimeout(() => setCopied(''), 2000)
   }
 
-  // Strip outer braces for suffix generation
-  const baseToken = selectedToken?.replace(/^\{|\}$/g, '') || ''
+  // Resolve token with number substitution
+  const resolveToken = (token: string): string => {
+    const inner = token.replace(/^\{|\}$/g, '')
+    if (/^Wn_/.test(inner)) return inner.replace('Wn_', `W${wargaNumber}_`)
+    if (/^PDn_/.test(inner)) return inner.replace('PDn_', `PD${wargaNumber}_`)
+    return inner
+  }
+
+  const baseToken = selectedToken ? resolveToken(selectedToken) : ''
 
   const suffixOptions = [
     { label: 'Tanpa suffix (apa adanya)', suffix: '', result: `{${baseToken}}` },
@@ -42,6 +63,9 @@ export function PlaceholderPage() {
     { label: 'lowercase', suffix: '_L', result: `{${baseToken}_L}` },
     { label: 'Propercase (Title Case)', suffix: '_P', result: `{${baseToken}_P}` },
   ]
+
+  // Determine label for number input
+  const numberLabel = selectedToken?.includes('Wn_') ? 'Nomor Warga' : 'Nomor Perangkat Desa'
 
   return (
     <div className="space-y-4">
@@ -145,31 +169,56 @@ export function PlaceholderPage() {
       </Tabs>
 
       {/* Suffix Modal */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog open={modalOpen} onOpenChange={(open) => { setModalOpen(open); if (!open) setModalStep('suffix') }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="font-mono text-base">{selectedToken}</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">Pilih style lalu klik untuk menyalin:</p>
-          <div className="space-y-2">
-            {suffixOptions.map(opt => (
-              <button
-                key={opt.suffix}
-                onClick={() => handleCopy(opt.result)}
-                className="w-full flex items-center justify-between rounded-md border p-3 hover:bg-accent transition-colors text-left"
-              >
-                <div>
-                  <p className="font-mono text-sm font-medium">{opt.result}</p>
-                  <p className="text-xs text-muted-foreground">{opt.label}</p>
-                </div>
-                {copied === opt.result ? (
-                  <Check className="h-4 w-4 text-green-500" />
-                ) : (
-                  <Copy className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-            ))}
-          </div>
+          {modalStep === 'number' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base">{numberLabel}</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                Masukkan nomor urut {selectedToken?.includes('Wn_') ? 'warga (W1, W2, W3, ...)' : 'perangkat desa (PD1, PD2, ...)'}
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{selectedToken?.includes('Wn_') ? 'W' : 'PD'}</span>
+                <Input
+                  type="number"
+                  min="1"
+                  value={wargaNumber}
+                  onChange={e => setWargaNumber(e.target.value)}
+                  className="w-20"
+                  placeholder="1"
+                />
+              </div>
+              <Button onClick={handleNumberConfirm} className="w-full">Lanjut Pilih Style</Button>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="font-mono text-base">{`{${baseToken}}`}</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">Pilih style lalu klik untuk menyalin:</p>
+              <div className="space-y-2">
+                {suffixOptions.map(opt => (
+                  <button
+                    key={opt.suffix}
+                    onClick={() => handleCopy(opt.result)}
+                    className="w-full flex items-center justify-between rounded-md border p-3 hover:bg-accent transition-colors text-left"
+                  >
+                    <div>
+                      <p className="font-mono text-sm font-medium">{opt.result}</p>
+                      <p className="text-xs text-muted-foreground">{opt.label}</p>
+                    </div>
+                    {copied === opt.result ? (
+                      <Check className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>
