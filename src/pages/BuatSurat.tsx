@@ -15,7 +15,7 @@ import { getDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
 import { getNomorSuratConfig, incrementCounter, getCurrentCounter } from '@/services/nomorSuratService'
 import { saveRiwayat } from '@/services/riwayatService'
-import { generateNomorSuratParts } from '@/utils/nomorSuratGenerator'
+import { generateNomorSuratParts, generateMultiNomorParts } from '@/utils/nomorSuratGenerator'
 import type { TemplateSurat, DetectedPlaceholder, Warga, DataDesa, PerangkatDesa } from '@/types'
 
 export function BuatSurat() {
@@ -71,16 +71,24 @@ export function BuatSurat() {
     setFormValues(values)
     setStep('fill')
     // Load nomor surat preview
-    loadNomorPreview(t.prefix_surat || '')
+    loadNomorPreview(t.prefix_surat || '', detected)
   }
 
-  const loadNomorPreview = async (prefix: string) => {
+  const loadNomorPreview = async (prefix: string, detected?: typeof placeholders) => {
     try {
       const config = await getNomorSuratConfig()
       if (!config) return
       const counter = await getCurrentCounter()
-      const parts = generateNomorSuratParts(config.format, counter, config.kode_desa, prefix)
-      setNomorPreview(parts.NOMOR_SURAT)
+      const phs = detected || placeholders
+      const nomorSlots = [...new Set(phs.filter(p => p.kategori === 'nomor_surat' && p.slot).map(p => p.slot!))]
+      const slotCount = nomorSlots.length || 1
+      const multiParts = generateMultiNomorParts(config.format, counter, config.kode_desa, prefix, slotCount)
+      if (slotCount > 1) {
+        const previews = Object.entries(multiParts).map(([slot, parts]) => `${slot}: ${parts.NOMOR_SURAT}`)
+        setNomorPreview(previews.join(' • '))
+      } else {
+        setNomorPreview(multiParts['N1'].NOMOR_SURAT)
+      }
     } catch {}
   }
 
@@ -92,18 +100,30 @@ export function BuatSurat() {
   }
 
   /** Build the final docx blob (shared by download and preview) */
-  const buildDocx = async (): Promise<{ blob: Blob; filename: string; finalValues: Record<string, string>; nomorUrut: number; nomorSurat: string } | null> => {
+  const buildDocx = async (): Promise<{ blob: Blob; filename: string; finalValues: Record<string, string>; nomorUrut: number; nomorSurat: string; slotCount: number } | null> => {
     const config = await getNomorSuratConfig()
     if (!config) { alert('Konfigurasi nomor surat belum diatur'); return null }
-    const nomorUrut = await incrementCounter()
+
+    // Determine nomor slots
+    const nomorSlots = [...new Set(placeholders.filter(p => p.kategori === 'nomor_surat' && p.slot).map(p => p.slot!))]
+    const slotCount = nomorSlots.length || 1
+
+    const nomorUrut = await incrementCounter(slotCount)
     const suratDate = tanggalOverride || new Date()
-    const parts = generateNomorSuratParts(config.format, nomorUrut, config.kode_desa, selectedTemplate!.prefix_surat || '', suratDate)
+    const multiParts = generateMultiNomorParts(config.format, nomorUrut, config.kode_desa, selectedTemplate!.prefix_surat || '', slotCount, suratDate)
 
     const finalValues = { ...formValues }
     for (const p of placeholders) {
       if (p.kategori === 'nomor_surat') {
-        if (p.field === 'NOMOR_SURAT' && nomorOverride) finalValues[p.token] = nomorOverride
-        else finalValues[p.token] = parts[p.field as keyof typeof parts] || ''
+        const slot = p.slot || 'N1'
+        const parts = multiParts[slot]
+        if (parts) {
+          if (p.field === 'NOMOR_SURAT' && nomorOverride && slot === 'N1') {
+            finalValues[p.token] = nomorOverride
+          } else {
+            finalValues[p.token] = parts[p.field as keyof typeof parts] || ''
+          }
+        }
       }
     }
     const svc = await import('@/services/templateService')
@@ -111,8 +131,8 @@ export function BuatSurat() {
     const { processDocxTemplate } = await import('@/utils/docxProcessor')
     const result = await processDocxTemplate(templateBytes, finalValues)
     const blob = new Blob([result], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
-    const filename = `${selectedTemplate!.nama.replace(/\s+/g, '_')}_${parts.S_NOMOR}.docx`
-    return { blob, filename, finalValues, nomorUrut, nomorSurat: nomorOverride || parts.NOMOR_SURAT }
+    const filename = `${selectedTemplate!.nama.replace(/\s+/g, '_')}_${multiParts['N1'].S_NOMOR}.docx`
+    return { blob, filename, finalValues, nomorUrut, nomorSurat: nomorOverride || multiParts['N1'].NOMOR_SURAT, slotCount }
   }
 
   const handleGenerate = async () => {
@@ -127,7 +147,8 @@ export function BuatSurat() {
         nik: findW1Value(result.finalValues, 'NIK'),
         alamat: findW1Value(result.finalValues, 'ALAMAT_LENGKAP') || findW1Value(result.finalValues, 'ALAMAT'),
       }
-      await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, result.nomorSurat, result.nomorUrut, result.finalValues, pemohon)
+      const nomorUrutAkhir = result.nomorUrut + result.slotCount - 1
+      await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, result.nomorSurat, result.nomorUrut, result.finalValues, pemohon, nomorUrutAkhir)
       alert('Surat berhasil di-generate!')
       setStep('select'); setSelectedTemplate(null); setFormValues({}); setNomorOverride(''); setTanggalOverride(undefined)
     } catch (err) { alert('Gagal generate surat'); console.error(err) }
@@ -141,14 +162,23 @@ export function BuatSurat() {
       if (!config) { alert('Konfigurasi nomor surat belum diatur'); setPreviewOpen(false); setPreviewLoading(false); return }
       // Build preview without incrementing counter
       const counter = await getCurrentCounter()
+      const nomorSlots = [...new Set(placeholders.filter(p => p.kategori === 'nomor_surat' && p.slot).map(p => p.slot!))]
+      const slotCount = nomorSlots.length || 1
       const suratDate = tanggalOverride || new Date()
-      const parts = generateNomorSuratParts(config.format, counter, config.kode_desa, selectedTemplate!.prefix_surat || '', suratDate)
+      const multiParts = generateMultiNomorParts(config.format, counter, config.kode_desa, selectedTemplate!.prefix_surat || '', slotCount, suratDate)
 
       const finalValues = { ...formValues }
       for (const p of placeholders) {
         if (p.kategori === 'nomor_surat') {
-          if (p.field === 'NOMOR_SURAT' && nomorOverride) finalValues[p.token] = nomorOverride
-          else finalValues[p.token] = parts[p.field as keyof typeof parts] || ''
+          const slot = p.slot || 'N1'
+          const parts = multiParts[slot]
+          if (parts) {
+            if (p.field === 'NOMOR_SURAT' && nomorOverride && slot === 'N1') {
+              finalValues[p.token] = nomorOverride
+            } else {
+              finalValues[p.token] = parts[p.field as keyof typeof parts] || ''
+            }
+          }
         }
       }
       const svc = await import('@/services/templateService')
@@ -329,11 +359,8 @@ export function BuatSurat() {
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => { setStep('select'); setSelectedTemplate(null) }}>
               Kembali
             </Button>
-            <Button variant="secondary" className="w-full sm:w-auto" onClick={handlePreview}>
-              <Eye className="mr-1 h-3.5 w-3.5" />Preview
-            </Button>
-            <Button className="w-full sm:w-auto" onClick={handleGenerate}>
-              <Download className="mr-1 h-3.5 w-3.5" />Download
+            <Button className="w-full sm:w-auto" onClick={handlePreview}>
+              <Eye className="mr-1 h-3.5 w-3.5" />Preview & Download
             </Button>
           </div>
         </div>
@@ -386,6 +413,15 @@ function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }:
     return age.toString()
   }
 
+  const BULAN_INDONESIA = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
+
+  /** Convert dd-mm-yyyy to "dd mmmm yyyy" (e.g. "17 Agustus 1945") */
+  const formatTanggalPanjang = (tgl: string): string => {
+    const [d, m, y] = tgl.split('-').map(Number)
+    if (!d || !m || !y) return tgl
+    return `${d} ${BULAN_INDONESIA[m - 1]} ${y}`
+  }
+
   const handleSelect = async (w: Warga) => {
     const rt = w.rt.padStart(3, '0')
     const rw = w.rw.padStart(3, '0')
@@ -404,7 +440,7 @@ function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }:
     if (dataDesa?.kabupaten) alamatParts.push(`Kabupaten ${dataDesa.kabupaten}`)
     const alamatLengkap = alamatParts.join(' ')
 
-    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: alamatLengkap, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}`, KEPALA_KELUARGA: kepalaKeluarga }
+    const map: Record<string, string> = { NIK: w.nik, NAMA: w.nama, JENIS_KELAMIN: w.jenis_kelamin, TEMPAT_LAHIR: w.tempat_lahir, TANGGAL_LAHIR: w.tanggal_lahir, TANGGAL_LAHIR_PANJANG: formatTanggalPanjang(w.tanggal_lahir), UMUR: computeUmur(w.tanggal_lahir), AGAMA: w.agama, STATUS: w.status, HUB_KELUARGA: w.hub_keluarga, PENDIDIKAN: w.pendidikan, PEKERJAAN: w.pekerjaan, NAMA_IBU: w.nama_ibu, NAMA_AYAH: w.nama_ayah, ALAMAT: w.alamat, RT: rt, RW: rw, NO_KK: w.no_kk, ALAMAT_LENGKAP: alamatLengkap, TTL: `${w.tempat_lahir}, ${w.tanggal_lahir}`, KEPALA_KELUARGA: kepalaKeluarga }
     // Batch all updates at once to avoid stale state
     const updates: Record<string, string> = {}
     for (const p of placeholders) { if (p.field in map) updates[p.token] = map[p.field] }

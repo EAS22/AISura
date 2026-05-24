@@ -9,8 +9,8 @@ export interface PlaceholderDefinition {
 
 export const WARGA_FIELDS = [
   'NIK', 'NAMA', 'JENIS_KELAMIN', 'TEMPAT_LAHIR', 'TANGGAL_LAHIR',
-  'UMUR', 'AGAMA', 'STATUS', 'HUB_KELUARGA', 'PENDIDIKAN',
-  'PEKERJAAN', 'NAMA_IBU', 'NAMA_AYAH', 'ALAMAT', 'RT', 'RW',
+  'TANGGAL_LAHIR_PANJANG', 'UMUR', 'AGAMA', 'STATUS', 'HUB_KELUARGA',
+  'PENDIDIKAN', 'PEKERJAAN', 'NAMA_IBU', 'NAMA_AYAH', 'ALAMAT', 'RT', 'RW',
   'NO_KK', 'ALAMAT_LENGKAP', 'TTL', 'KEPALA_KELUARGA',
 ] as const;
 
@@ -21,6 +21,13 @@ export const PERANGKAT_DESA_FIELDS = [
 ] as const;
 
 export type PerangkatDesaField = typeof PERANGKAT_DESA_FIELDS[number];
+
+export const NOMOR_SURAT_FIELDS = [
+  'NOMOR_SURAT', 'S_NOMOR', 'S_PREFIX', 'S_BULAN', 'S_BULAN_ROM',
+  'S_TAHUN', 'S_KODE_DESA', 'S_TANGGAL',
+] as const;
+
+export type NomorSuratField = typeof NOMOR_SURAT_FIELDS[number];
 
 export const DESA_PLACEHOLDERS: PlaceholderDefinition[] = [
   { token: 'DESA', kategori: 'desa', deskripsi: 'Nama Desa', contoh: 'Girimulya' },

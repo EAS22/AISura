@@ -138,6 +138,7 @@ export async function initDatabase(): Promise<Database> {
   try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN pemohon_nama TEXT DEFAULT ''`); } catch {}
   try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN pemohon_nik TEXT DEFAULT ''`); } catch {}
   try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN pemohon_alamat TEXT DEFAULT ''`); } catch {}
+  try { await db.execute(`ALTER TABLE riwayat_surat ADD COLUMN nomor_urut_akhir INTEGER DEFAULT 0`); } catch {}
 
   await db.execute(`
     CREATE TABLE IF NOT EXISTS riwayat_surat_data (

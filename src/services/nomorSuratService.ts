@@ -26,28 +26,28 @@ export async function saveNomorSuratConfig(data: { format: string; kode_desa: st
   }
 }
 
-export async function incrementCounter(): Promise<number> {
+export async function incrementCounter(count: number = 1): Promise<number> {
   const config = await getNomorSuratConfig();
   if (!config) throw new Error('Nomor surat config not found');
 
   const currentYear = new Date().getFullYear();
-  let newCounter: number;
+  let startCounter: number;
 
   if (config.tahun !== currentYear) {
-    newCounter = 1;
+    startCounter = 1;
     await execute(
       'UPDATE nomor_surat_config SET counter=$1, tahun=$2, updated_at=$3 WHERE id=$4',
-      [newCounter + 1, currentYear, new Date().toISOString(), config.id]
+      [startCounter + count, currentYear, new Date().toISOString(), config.id]
     );
   } else {
-    newCounter = config.counter;
+    startCounter = config.counter;
     await execute(
       'UPDATE nomor_surat_config SET counter=$1, updated_at=$2 WHERE id=$3',
-      [newCounter + 1, new Date().toISOString(), config.id]
+      [startCounter + count, new Date().toISOString(), config.id]
     );
   }
 
-  return newCounter;
+  return startCounter;
 }
 
 export async function getCurrentCounter(): Promise<number> {
@@ -58,7 +58,7 @@ export async function getCurrentCounter(): Promise<number> {
 export async function recalculateCounter(): Promise<void> {
   const currentYear = new Date().getFullYear();
   const rows = await select<{ max_nomor: number | null }>(
-    `SELECT MAX(nomor_urut) as max_nomor FROM riwayat_surat
+    `SELECT MAX(COALESCE(nomor_urut_akhir, nomor_urut)) as max_nomor FROM riwayat_surat
      WHERE strftime('%Y', tanggal_generate) = $1`,
     [currentYear.toString()]
   );

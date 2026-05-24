@@ -51,3 +51,19 @@ export function generateNomorSuratParts(
 
   return parts;
 }
+
+export function generateMultiNomorParts(
+  format: string,
+  startCounter: number,
+  kodeDesa: string,
+  prefix: string = '',
+  slotCount: number = 1,
+  date: Date = new Date()
+): Record<string, NomorSuratParts> {
+  const result: Record<string, NomorSuratParts> = {};
+  for (let i = 0; i < slotCount; i++) {
+    const slot = `N${i + 1}`;
+    result[slot] = generateNomorSuratParts(format, startCounter + i, kodeDesa, prefix, date);
+  }
+  return result;
+}

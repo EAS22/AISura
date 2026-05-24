@@ -111,6 +111,7 @@ export interface RiwayatSurat {
   template_nama: string;
   nomor_surat: string;
   nomor_urut: number;
+  nomor_urut_akhir: number;
   pemohon_nama: string;
   pemohon_nik: string;
   pemohon_alamat: string;

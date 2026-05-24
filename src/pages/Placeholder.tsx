@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Search, Copy, Check } from 'lucide-react'
-import { DESA_PLACEHOLDERS, NOMOR_SURAT_PLACEHOLDERS, WARGA_FIELDS, PERANGKAT_DESA_FIELDS, PERANGKAT_DESA_ALIASES } from '@/constants/placeholders'
+import { DESA_PLACEHOLDERS, NOMOR_SURAT_PLACEHOLDERS, NOMOR_SURAT_FIELDS, WARGA_FIELDS, PERANGKAT_DESA_FIELDS, PERANGKAT_DESA_ALIASES } from '@/constants/placeholders'
 
 export function PlaceholderPage() {
   const [search, setSearch] = useState('')
@@ -162,6 +162,18 @@ export function PlaceholderPage() {
                 {NOMOR_SURAT_PLACEHOLDERS.filter(p => filter(p.token, p.deskripsi)).map(p => (
                   <PlaceholderCard key={p.token} token={`{${p.token}}`} description={p.deskripsi} onClick={() => handleCardClick(`{${p.token}}`)} />
                 ))}
+              </div>
+              <div className="mt-4 pt-4 border-t">
+                <h4 className="text-xs font-medium mb-2 text-muted-foreground">Multi-Nomor (format: {'{Nn_FIELD}'})</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Untuk template yang butuh lebih dari 1 nomor surat, gunakan prefix N1_, N2_, dst.
+                  Contoh: {'{N1_NOMOR_SURAT}'}, {'{N2_NOMOR_SURAT}'}, {'{N1_S_NOMOR}'}, {'{N2_S_NOMOR}'}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {NOMOR_SURAT_FIELDS.map(f => (
+                    <PlaceholderCard key={`Nn_${f}`} token={`{Nn_${f}}`} description={f.replace(/_/g, ' ')} onClick={() => handleCardClick(`{Nn_${f}}`)} />
+                  ))}
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FilePlus, Trash2, Pencil } from 'lucide-react'
+import { countNomorSlots } from '@/utils/placeholderDetector'
 import type { TemplateSurat, DetectedPlaceholder } from '@/types'
 
 export function TemplateSuratPage() {
@@ -107,8 +108,9 @@ export function TemplateSuratPage() {
                     {t.deskripsi && <p className="text-xs text-muted-foreground mt-0.5">{t.deskripsi}</p>}
                     <div className="flex items-center gap-2 mt-1.5">
                       <Badge variant="secondary">{ph.length} placeholder</Badge>
-                      {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
-                      {t.prefix_surat && <Badge variant="outline">Prefix: {t.prefix_surat}</Badge>}
+                     {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
+                     {t.prefix_surat && <Badge variant="outline">Prefix: {t.prefix_surat}</Badge>}
+                     {countNomorSlots(ph) > 1 && <Badge variant="outline">{countNomorSlots(ph)} nomor</Badge>}
                       <span className="text-[10px] text-muted-foreground">{new Date(t.created_at).toLocaleDateString('id-ID')}</span>
                     </div>
                   </div>

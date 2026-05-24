@@ -1,5 +1,5 @@
 import type { DetectedPlaceholder, PlaceholderKategori } from '../types';
-import { DESA_TOKENS, NOMOR_SURAT_TOKENS, PERANGKAT_DESA_ALIASES, WARGA_FIELDS, PERANGKAT_DESA_FIELDS } from '../constants/placeholders';
+import { DESA_TOKENS, NOMOR_SURAT_TOKENS, PERANGKAT_DESA_ALIASES, WARGA_FIELDS, PERANGKAT_DESA_FIELDS, NOMOR_SURAT_FIELDS } from '../constants/placeholders';
 import type { TextModifier } from './textTransform';
 
 const PLACEHOLDER_REGEX = /\{([A-Z0-9_]+)\}/g;
@@ -86,6 +86,10 @@ function isKnownBaseToken(token: string): boolean {
   if (pdMatch) {
     return (PERANGKAT_DESA_FIELDS as readonly string[]).includes(pdMatch[1]);
   }
+  const nomorMatch = token.match(/^N\d+_(.+)$/);
+  if (nomorMatch) {
+    return (NOMOR_SURAT_FIELDS as readonly string[]).includes(nomorMatch[1]);
+  }
   if (DESA_TOKENS.includes(token)) return true;
   if (NOMOR_SURAT_TOKENS.includes(token)) return true;
   if (token in PERANGKAT_DESA_ALIASES) return true;
@@ -96,6 +100,7 @@ function classifyToken(token: string): PlaceholderKategori {
   if (/^W\d+_/.test(token)) return 'warga';
   if (/^PD\d+_/.test(token)) return 'perangkat_desa';
   if (token in PERANGKAT_DESA_ALIASES) return 'perangkat_desa';
+  if (/^N\d+_/.test(token)) return 'nomor_surat';
   if (NOMOR_SURAT_TOKENS.includes(token) || token === 'NOMOR_SURAT') return 'nomor_surat';
   if (DESA_TOKENS.includes(token)) return 'desa';
   return 'custom';
@@ -108,11 +113,17 @@ function extractSlot(token: string): string | undefined {
   const pdMatch = token.match(/^(PD\d+)_/);
   if (pdMatch) return pdMatch[1];
 
+  const nomorMatch = token.match(/^(N\d+)_/);
+  if (nomorMatch) return nomorMatch[1];
+
   if (token in PERANGKAT_DESA_ALIASES) {
     const resolved = PERANGKAT_DESA_ALIASES[token];
     const m = resolved.match(/^(PD\d+)_/);
     return m ? m[1] : undefined;
   }
+
+  // Unslotted nomor surat tokens → slot N1
+  if (NOMOR_SURAT_TOKENS.includes(token) || token === 'NOMOR_SURAT') return 'N1';
 
   return undefined;
 }
@@ -124,6 +135,9 @@ function extractField(token: string): string {
   const pdMatch = token.match(/^PD\d+_(.+)$/);
   if (pdMatch) return pdMatch[1];
 
+  const nomorMatch = token.match(/^N\d+_(.+)$/);
+  if (nomorMatch) return nomorMatch[1];
+
   return token;
 }
 
@@ -131,6 +145,16 @@ export function countWargaSlots(placeholders: DetectedPlaceholder[]): number {
   const slots = new Set<string>();
   for (const p of placeholders) {
     if (p.kategori === 'warga' && p.slot) {
+      slots.add(p.slot);
+    }
+  }
+  return slots.size;
+}
+
+export function countNomorSlots(placeholders: DetectedPlaceholder[]): number {
+  const slots = new Set<string>();
+  for (const p of placeholders) {
+    if (p.kategori === 'nomor_surat' && p.slot) {
       slots.add(p.slot);
     }
   }

@@ -124,7 +124,12 @@ export function RiwayatSuratPage() {
                   <TableRow key={r.id}>
                     <TableCell>{page * perPage + i + 1}</TableCell>
                     <TableCell>{new Date(r.tanggal_generate).toLocaleDateString('id-ID')}</TableCell>
-                    <TableCell>{r.nomor_surat}</TableCell>
+                    <TableCell>
+                      {r.nomor_surat}
+                      {r.nomor_urut_akhir > r.nomor_urut && (
+                        <span className="opacity-60 ml-1">(+{r.nomor_urut_akhir - r.nomor_urut})</span>
+                      )}
+                    </TableCell>
                     <TableCell>{r.template_nama}</TableCell>
                     <TableCell>{r.pemohon_nama || '-'}</TableCell>
                     <TableCell>{r.pemohon_nik || '-'}</TableCell>
