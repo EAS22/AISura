@@ -135,7 +135,7 @@ export function DataWarga() {
 
       {/* Scrollable table */}
       <div className="min-h-0 flex-1 overflow-y-auto py-4">
-        <Card>
+        <Card className="overflow-hidden border-border/80 shadow-sm">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -152,12 +152,12 @@ export function DataWarga() {
               <TableBody className="font-table">
                 {paginated.map((w, i) => (
                   <TableRow key={w.id}>
-                    <TableCell>{page * perPage + i + 1}</TableCell>
-                    <TableCell>{w.nik}</TableCell>
-                    <TableCell>{w.nama}</TableCell>
+                    <TableCell className="text-muted-foreground font-data-number">{page * perPage + i + 1}</TableCell>
+                    <TableCell className="font-data-number text-foreground/90">{w.nik}</TableCell>
+                    <TableCell className="font-semibold">{w.nama}</TableCell>
                     <TableCell>{w.jenis_kelamin === 'Laki-laki' ? 'L' : 'P'}</TableCell>
-                    <TableCell>{w.alamat}</TableCell>
-                    <TableCell>{w.rt.padStart(3, '0')}/{w.rw.padStart(3, '0')}</TableCell>
+                    <TableCell className="max-w-[320px] truncate text-foreground/80">{w.alamat}</TableCell>
+                    <TableCell className="font-data-number">{w.rt.padStart(3, '0')}/{w.rw.padStart(3, '0')}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(w)}><Pencil className="h-3.5 w-3.5" /></Button>

@@ -105,7 +105,7 @@ export function RiwayatSuratPage() {
 
       {/* Scrollable table */}
       <div className="min-h-0 flex-1 overflow-y-auto py-4">
-        <Card>
+        <Card className="overflow-hidden border-border/80 shadow-sm">
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -122,17 +122,17 @@ export function RiwayatSuratPage() {
               <TableBody className="font-table">
                 {paginated.map((r, i) => (
                   <TableRow key={r.id}>
-                    <TableCell>{page * perPage + i + 1}</TableCell>
-                    <TableCell>{new Date(r.tanggal_generate).toLocaleDateString('id-ID')}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-muted-foreground font-data-number">{page * perPage + i + 1}</TableCell>
+                    <TableCell className="font-data-number text-foreground/80">{new Date(r.tanggal_generate).toLocaleDateString('id-ID')}</TableCell>
+                    <TableCell className="font-semibold font-data-number">
                       {r.nomor_surat}
                       {r.nomor_urut_akhir > r.nomor_urut && (
-                        <span className="opacity-60 ml-1">(+{r.nomor_urut_akhir - r.nomor_urut})</span>
+                        <span className="ml-2 rounded-full bg-blue-600/10 px-1.5 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300">+{r.nomor_urut_akhir - r.nomor_urut}</span>
                       )}
                     </TableCell>
-                    <TableCell>{r.template_nama}</TableCell>
-                    <TableCell>{r.pemohon_nama || '-'}</TableCell>
-                    <TableCell>{r.pemohon_nik || '-'}</TableCell>
+                    <TableCell className="max-w-[260px] truncate text-foreground/80">{r.template_nama}</TableCell>
+                    <TableCell className="font-semibold">{r.pemohon_nama || '-'}</TableCell>
+                    <TableCell className="font-data-number text-foreground/80">{r.pemohon_nik || '-'}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRegenerate(r)} title="Generate ulang"><RotateCcw className="h-3.5 w-3.5" /></Button>

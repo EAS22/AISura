@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getNomorSuratConfig, saveNomorSuratConfig } from '@/services/nomorSuratService'
 import { generateNomorSuratParts } from '@/utils/nomorSuratGenerator'
+import { Hash, Save } from 'lucide-react'
 
 export function NomorSuratPage() {
   const [format, setFormat] = useState('{S_NOMOR}/{S_KODE_DESA}/{S_BULAN_ROM}/{S_TAHUN}')
@@ -37,50 +38,63 @@ export function NomorSuratPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Nomor Surat</h1>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Nomor Surat</h1>
+        <p className="text-sm text-muted-foreground">Atur format, kode desa, dan nomor urut otomatis.</p>
+      </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Format</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-1">
-            <Label>Format Nomor Surat</Label>
-            <Input value={format} onChange={e => setFormat(e.target.value)} />
-            <p className="text-[10px] text-muted-foreground">Gunakan: {'{S_NOMOR}'}, {'{S_PREFIX}'}, {'{S_KODE_DESA}'}, {'{S_BULAN_ROM}'}, {'{S_TAHUN}'}</p>
-          </div>
-          <div className="space-y-1">
-            <Label>Kode Desa</Label>
-            <Input value={kodeDesa} onChange={e => setKodeDesa(e.target.value)} placeholder="DS-GRM" />
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
+          <Card className="shadow-sm">
+            <CardHeader><CardTitle className="text-sm">Format</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="space-y-1">
+                <Label>Format Nomor Surat</Label>
+                <Input value={format} onChange={e => setFormat(e.target.value)} />
+                <p className="text-[10px] text-muted-foreground">Gunakan: {'{S_NOMOR}'}, {'{S_PREFIX}'}, {'{S_KODE_DESA}'}, {'{S_BULAN_ROM}'}, {'{S_TAHUN}'}</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Kode Desa</Label>
+                <Input value={kodeDesa} onChange={e => setKodeDesa(e.target.value)} placeholder="DS-GRM" />
+              </div>
+            </CardContent>
+          </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Counter</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm">Counter saat ini: <span className="font-bold">{counter}</span></p>
-          <div className="space-y-1">
-            <Label>Set Nomor Awal (opsional)</Label>
-            <Input value={nomorAwal} onChange={e => setNomorAwal(e.target.value)} placeholder="Kosongkan jika tidak ubah" />
-          </div>
-        </CardContent>
-      </Card>
+          <Card className="shadow-sm">
+            <CardHeader><CardTitle className="text-sm">Counter</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="rounded-xl border bg-muted/30 p-3">
+                <p className="text-xs text-muted-foreground">Counter saat ini</p>
+                <p className="font-data-number text-2xl font-bold">{counter}</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Set Nomor Awal (opsional)</Label>
+                <Input value={nomorAwal} onChange={e => setNomorAwal(e.target.value)} placeholder="Kosongkan jika tidak ubah" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Preview</CardTitle></CardHeader>
-        <CardContent>
-          <p className="font-mono text-lg font-bold">{preview.NOMOR_SURAT}</p>
-          <div className="grid grid-cols-2 gap-1 mt-2 text-xs text-muted-foreground">
-            <span>S_NOMOR: {preview.S_NOMOR}</span>
-            <span>S_BULAN: {preview.S_BULAN}</span>
-            <span>S_BULAN_ROM: {preview.S_BULAN_ROM}</span>
-            <span>S_TAHUN: {preview.S_TAHUN}</span>
-            <span>S_KODE_DESA: {preview.S_KODE_DESA}</span>
-            <span>S_TANGGAL: {preview.S_TANGGAL}</span>
-          </div>
-        </CardContent>
-      </Card>
+        <Card className="overflow-hidden border-blue-200/60 bg-gradient-to-br from-blue-50 via-background to-background shadow-sm dark:border-blue-900/40 dark:from-blue-950/25">
+          <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Hash className="h-4 w-4 text-blue-600" />Preview</CardTitle></CardHeader>
+          <CardContent>
+            <div className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs font-medium text-muted-foreground">Nomor berikutnya</p>
+              <p className="mt-1 break-all font-data-number text-xl font-bold text-blue-700 dark:text-blue-300">{preview.NOMOR_SURAT}</p>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <span>S_NOMOR: {preview.S_NOMOR}</span>
+              <span>S_BULAN: {preview.S_BULAN}</span>
+              <span>S_BULAN_ROM: {preview.S_BULAN_ROM}</span>
+              <span>S_TAHUN: {preview.S_TAHUN}</span>
+              <span>S_KODE_DESA: {preview.S_KODE_DESA}</span>
+              <span>S_TANGGAL: {preview.S_TANGGAL}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Button onClick={handleSave}>Simpan Konfigurasi</Button>
+      <Button onClick={handleSave}><Save className="mr-1 h-3.5 w-3.5" />Simpan Konfigurasi</Button>
     </div>
   )
 }

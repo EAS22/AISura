@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, ImageIcon, Save } from 'lucide-react'
 import { getDataDesa, saveDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa, savePerangkatDesa, deletePerangkatDesa } from '@/services/perangkatDesaService'
 import { searchWarga } from '@/services/wargaService'
@@ -74,10 +74,13 @@ export function DataDesaPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-bold tracking-tight">Data Desa</h1>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Data Desa</h1>
+        <p className="text-sm text-muted-foreground">Lengkapi identitas desa, kop surat, logo, dan perangkat desa.</p>
+      </div>
 
       {/* Identitas Desa */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader><CardTitle className="text-sm">Identitas Desa</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-3">
           <div className="space-y-1"><Label>Nama Desa</Label><Input value={desa.desa || ''} onChange={e => setDesa({ ...desa, desa: e.target.value })} /></div>
@@ -92,15 +95,15 @@ export function DataDesaPage() {
       </Card>
 
       {/* Kop Surat & Logo */}
-      <Card>
+      <Card className="shadow-sm">
         <CardHeader><CardTitle className="text-sm">Kop Surat & Logo Desa</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Kop Surat (placeholder: {'{KOP_SURAT}'})</Label>
+        <CardContent className="grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2"><ImageIcon className="h-4 w-4 text-blue-600" /><Label>Kop Surat (placeholder: {'{KOP_SURAT}'})</Label></div>
             <p className="text-xs text-muted-foreground">Gambar header surat yang akan menggantikan placeholder {'{KOP_SURAT}'} di template docx.</p>
             {desa.kop_surat && (
-              <div className="border rounded-md p-2">
-                <img src={desa.kop_surat} alt="Kop Surat" className="max-h-24 object-contain" />
+              <div className="rounded-lg border bg-background p-2">
+                <img src={desa.kop_surat} alt="Kop Surat" className="max-h-24 w-full object-contain" />
               </div>
             )}
             <div className="flex gap-2">
@@ -121,12 +124,12 @@ export function DataDesaPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Logo Desa</Label>
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <div className="flex items-center gap-2"><ImageIcon className="h-4 w-4 text-blue-600" /><Label>Logo Desa</Label></div>
             <p className="text-xs text-muted-foreground">Logo/lambang desa.</p>
             {desa.logo_desa && (
-              <div className="border rounded-md p-2">
-                <img src={desa.logo_desa} alt="Logo Desa" className="max-h-20 object-contain" />
+              <div className="rounded-lg border bg-background p-2">
+                <img src={desa.logo_desa} alt="Logo Desa" className="max-h-24 w-full object-contain" />
               </div>
             )}
             <div className="flex gap-2">
@@ -147,12 +150,14 @@ export function DataDesaPage() {
             </div>
           </div>
 
-          <Button size="sm" onClick={handleSaveDesa}>Simpan Data Desa</Button>
+          <div className="lg:col-span-2">
+            <Button size="sm" onClick={handleSaveDesa}><Save className="mr-1 h-3.5 w-3.5" />Simpan Data Desa</Button>
+          </div>
         </CardContent>
       </Card>
 
       {/* Perangkat Desa - Table */}
-      <Card>
+      <Card className="overflow-hidden shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Perangkat Desa</CardTitle>
           <Button size="sm" onClick={openAddModal}><Plus className="mr-1 h-3.5 w-3.5" />Tambah</Button>
@@ -169,16 +174,16 @@ export function DataDesaPage() {
                 <TableHead className="w-20 text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody className="font-table">
               {perangkat.map((pd, i) => (
                 <TableRow key={i}>
-                  <TableCell className="text-muted-foreground">PD{pd.urutan || i + 1}</TableCell>
+                  <TableCell className="font-data-number text-muted-foreground">PD{pd.urutan || i + 1}</TableCell>
                   <TableCell>{pd.jabatan}</TableCell>
                   <TableCell className="font-medium">
                     {[pd.gelar_depan, pd.nama, pd.gelar_belakang].filter(Boolean).join(' ') || '-'}
                   </TableCell>
-                  <TableCell className="font-mono text-xs">{pd.nik || '-'}</TableCell>
-                  <TableCell className="text-xs">{pd.nipd || '-'}</TableCell>
+                  <TableCell className="font-data-number text-foreground/80">{pd.nik || '-'}</TableCell>
+                  <TableCell className="font-data-number text-foreground/80">{pd.nipd || '-'}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditModal(i)}><Pencil className="h-3.5 w-3.5" /></Button>
