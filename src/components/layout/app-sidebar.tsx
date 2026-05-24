@@ -8,6 +8,8 @@ import {
 } from '@/components/ui/sidebar'
 import { NavGroup } from './nav-group'
 import type { SidebarData } from './types'
+import { useUpdate } from '@/contexts/UpdateContext'
+import { getUpdateBadgeLabel } from '@/services/updateService'
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   sidebarData: SidebarData
@@ -34,10 +36,12 @@ export function AppSidebar({ sidebarData, ...props }: AppSidebarProps) {
 
 function SidebarLogo() {
   const { state } = useSidebar()
+  const { status, availableVersion, currentVersion } = useUpdate()
   const isCollapsed = state === 'collapsed'
+  const hasUpdate = status === 'available'
 
   return (
-    <div className="flex items-center gap-2 px-2 py-1">
+    <div className="relative flex items-center gap-2 px-2 py-1">
       <span className="text-xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
         {isCollapsed ? (
           <>
@@ -51,8 +55,11 @@ function SidebarLogo() {
           </>
         )}
       </span>
+      {isCollapsed && hasUpdate && <span className="absolute right-1 top-0 h-2 w-2 rounded-full bg-blue-600 ring-2 ring-sidebar" />}
       {!isCollapsed && (
-        <span className="text-[9px] text-muted-foreground bg-muted px-1 py-0.5 rounded">v1.0.0</span>
+        <span className={`rounded px-1 py-0.5 text-[9px] ${hasUpdate ? 'bg-blue-600 text-white' : 'bg-muted text-muted-foreground'}`}>
+          {getUpdateBadgeLabel(status, availableVersion, currentVersion)}
+        </span>
       )}
     </div>
   )

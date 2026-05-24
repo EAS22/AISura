@@ -3,6 +3,7 @@ import { initDatabase } from './services/db'
 import { hasPassword, getDisplayName } from './services/authService'
 import { ThemeProvider } from '@/context/theme-provider'
 import { LayoutProvider } from '@/context/layout-provider'
+import { UpdateProvider } from '@/contexts/UpdateContext'
 import { NavigationContext } from '@/lib/router'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
@@ -105,17 +106,19 @@ function App() {
     <ThemeProvider>
       <LayoutProvider>
         <NavigationContext.Provider value={{ currentPath, navigate: setCurrentPath }}>
-          <SidebarProvider>
-            <AppSidebar sidebarData={sidebarData as SidebarData} />
-            <div className="flex min-h-0 flex-1 flex-col w-full overflow-hidden">
-              <Header fixed>
-                <HeaderContent onLogout={handleLogout} />
-              </Header>
-              <Main>
-                {renderPage()}
-              </Main>
-            </div>
-          </SidebarProvider>
+          <UpdateProvider enabled={authStatus === 'authenticated'}>
+            <SidebarProvider>
+              <AppSidebar sidebarData={sidebarData as SidebarData} />
+              <div className="flex min-h-0 flex-1 flex-col w-full overflow-hidden">
+                <Header fixed>
+                  <HeaderContent onLogout={handleLogout} />
+                </Header>
+                <Main>
+                  {renderPage()}
+                </Main>
+              </div>
+            </SidebarProvider>
+          </UpdateProvider>
         </NavigationContext.Provider>
       </LayoutProvider>
     </ThemeProvider>

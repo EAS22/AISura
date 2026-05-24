@@ -29,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "deb", "appimage"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,6 +39,15 @@
     ]
   },
   "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI3QTc1NkYwQkY0MjA3MTcKUldRWEIwSy84RmFudDlVM3pPc05Vb3M3dnBtc2hTWmRsRTBOeU1uRXpzcnhGaVova2tQL1pvMDUK",
+      "endpoints": [
+        "https://github.com/EAS22/AISura/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    },
     "sql": {
       "preload": ["sqlite:aisura.db"]
     }

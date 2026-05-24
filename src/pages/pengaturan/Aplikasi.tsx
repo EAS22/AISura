@@ -5,9 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/hooks/use-confirm'
 import { Code2, Globe2, Mail, Sparkles } from 'lucide-react'
+import { useUpdate } from '@/contexts/UpdateContext'
 
 export function AplikasiPage() {
   const { confirm, ConfirmDialog } = useConfirm()
+  const update = useUpdate()
   const [loginImage, setLoginImage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -126,7 +128,7 @@ export function AplikasiPage() {
                         <span className="text-blue-600">AI</span>
                         <span className="text-black dark:text-white">Sura</span>
                       </span>
-                      <Badge variant="secondary" className="rounded-full">v1.0.0</Badge>
+                      <Badge variant="secondary" className="rounded-full">v{update.currentVersion}</Badge>
                     </div>
                     <p className="mt-1 text-sm font-medium text-muted-foreground">Aplikasi Surat Otomatis Desa</p>
                   </div>
@@ -134,10 +136,11 @@ export function AplikasiPage() {
                 <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
                   Sistem desktop untuk mengelola template DOCX, data warga, nomor surat, dan riwayat administrasi desa dalam satu alur kerja.
                 </p>
+                <UpdateActionPanel />
               </div>
 
               <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-[430px]">
-                <InfoTile icon={Code2} label="Versi" value="v1.0.0" />
+                <InfoTile icon={Code2} label="Versi" value={`v${update.currentVersion}`} />
                 <InfoTile icon={Sparkles} label="Developer" value="EAS Creative Studio" />
                 <InfoTile icon={Mail} label="Email" value="dev@eas.biz.id" />
                 <InfoTile icon={Globe2} label="Web" value="eas.biz.id" />
@@ -162,6 +165,56 @@ function InfoTile({ icon: Icon, label, value }: { icon: React.ComponentType<{ cl
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
         <p className="truncate text-sm font-semibold text-foreground">{value}</p>
       </div>
+    </div>
+  )
+}
+
+function UpdateActionPanel() {
+  const update = useUpdate()
+  const isChecking = update.status === 'checking'
+  const isDownloading = update.status === 'downloading'
+  const isInstalling = update.status === 'installing'
+  const isBusy = isChecking || isDownloading || isInstalling
+
+  if (update.status === 'available') {
+    return (
+      <div className="flex flex-col gap-3 rounded-2xl border border-blue-200/70 bg-blue-600/10 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-blue-900/50">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Update tersedia: v{update.availableVersion}</p>
+          <p className="text-xs text-muted-foreground">Klik update untuk mengunduh, memasang, lalu restart aplikasi.</p>
+        </div>
+        <Button size="sm" onClick={update.installUpdate}>Update Sekarang</Button>
+      </div>
+    )
+  }
+
+  if (isDownloading || isInstalling) {
+    return (
+      <div className="rounded-2xl border border-blue-200/70 bg-background/70 p-3 dark:border-blue-900/50">
+        <div className="flex items-center justify-between text-sm">
+          <span className="font-semibold">{isInstalling ? 'Memasang update...' : 'Mengunduh update...'}</span>
+          <span className="text-muted-foreground">{update.progress?.percent || 0}%</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
+          <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${update.progress?.percent || 0}%` }} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-background/70 p-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-semibold text-foreground">
+          {update.status === 'not_available' ? 'Aplikasi sudah versi terbaru' : 'Update aplikasi'}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {update.error || 'Cek versi terbaru dari GitHub Releases saat internet tersedia.'}
+        </p>
+      </div>
+      <Button size="sm" variant="outline" onClick={() => update.checkUpdate(false)} disabled={isBusy}>
+        {isChecking ? 'Mengecek...' : 'Cek Update'}
+      </Button>
     </div>
   )
 }
