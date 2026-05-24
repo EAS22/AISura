@@ -40,11 +40,14 @@ function SidebarLogo() {
     <div className="flex items-center gap-2 px-2 py-1">
       <span className="text-xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
         {isCollapsed ? (
-          <span className="text-primary">AIS</span>
+          <>
+            <span className="text-blue-600">AI</span>
+            <span className="text-black dark:text-white">S</span>
+          </>
         ) : (
           <>
-            <span className="text-primary">AI</span>
-            <span className="text-foreground">Sura</span>
+            <span className="text-blue-600">AI</span>
+            <span className="text-black dark:text-white">Sura</span>
           </>
         )}
       </span>

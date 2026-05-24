@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/hooks/use-confirm'
+import { Code2, Globe2, Mail, Sparkles } from 'lucide-react'
 
 export function AplikasiPage() {
   const { confirm, ConfirmDialog } = useConfirm()
@@ -108,17 +110,58 @@ export function AplikasiPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader><CardTitle className="text-sm">Informasi</CardTitle></CardHeader>
-        <CardContent className="text-sm space-y-1 text-muted-foreground">
-          <p>Versi: <span className="font-medium text-foreground">v1.0.0</span></p>
-          <p>Developer: EAS Creative Studio</p>
-          <p>Email: dev@eas.biz.id</p>
-          <p>Web: eas.biz.id</p>
+      <Card className="overflow-hidden border-blue-200/60 bg-gradient-to-br from-blue-50 via-background to-background shadow-sm dark:border-blue-900/40 dark:from-blue-950/30">
+        <CardContent className="p-0">
+          <div className="relative p-5 sm:p-6">
+            <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-blue-500/10 blur-2xl" />
+            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-200/70 bg-white/75 shadow-sm dark:border-blue-900/60 dark:bg-background/70">
+                    <Sparkles className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-3xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
+                        <span className="text-blue-600">AI</span>
+                        <span className="text-black dark:text-white">Sura</span>
+                      </span>
+                      <Badge variant="secondary" className="rounded-full">v1.0.0</Badge>
+                    </div>
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">Aplikasi Surat Otomatis Desa</p>
+                  </div>
+                </div>
+                <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Sistem desktop untuk mengelola template DOCX, data warga, nomor surat, dan riwayat administrasi desa dalam satu alur kerja.
+                </p>
+              </div>
+
+              <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:min-w-[430px]">
+                <InfoTile icon={Code2} label="Versi" value="v1.0.0" />
+                <InfoTile icon={Sparkles} label="Developer" value="EAS Creative Studio" />
+                <InfoTile icon={Mail} label="Email" value="dev@eas.biz.id" />
+                <InfoTile icon={Globe2} label="Web" value="eas.biz.id" />
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
       <ConfirmDialog />
+    </div>
+  )
+}
+
+function InfoTile({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string }) {
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-xl border border-blue-200/60 bg-white/70 p-3 shadow-sm backdrop-blur-sm dark:border-blue-900/50 dark:bg-background/55">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-600">
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="truncate text-sm font-semibold text-foreground">{value}</p>
+      </div>
     </div>
   )
 }
