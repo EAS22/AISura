@@ -4,3 +4,5 @@ src-tauri/target/
 ACCESS_TOKENS.md
 *.db
 .DS_Store
+
+.worktrees/
