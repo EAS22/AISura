@@ -18,6 +18,25 @@ import { saveRiwayat } from '@/services/riwayatService'
 import { generateNomorSuratParts, generateMultiNomorParts } from '@/utils/nomorSuratGenerator'
 import type { TemplateSurat, DetectedPlaceholder, Warga, DataDesa, PerangkatDesa } from '@/types'
 
+const TEMPLATE_ACCENTS = [
+  { accent: 'blue', card: 'border-blue-200 bg-gradient-to-br from-blue-50 via-background to-background hover:border-blue-400 dark:border-blue-900/50 dark:from-blue-950/25', bar: 'bg-blue-600', badge: 'bg-blue-600/10 text-blue-700 dark:text-blue-300' },
+  { accent: 'emerald', card: 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-background to-background hover:border-emerald-400 dark:border-emerald-900/50 dark:from-emerald-950/25', bar: 'bg-emerald-600', badge: 'bg-emerald-600/10 text-emerald-700 dark:text-emerald-300' },
+  { accent: 'amber', card: 'border-amber-200 bg-gradient-to-br from-amber-50 via-background to-background hover:border-amber-400 dark:border-amber-900/50 dark:from-amber-950/25', bar: 'bg-amber-500', badge: 'bg-amber-500/10 text-amber-700 dark:text-amber-300' },
+  { accent: 'rose', card: 'border-rose-200 bg-gradient-to-br from-rose-50 via-background to-background hover:border-rose-400 dark:border-rose-900/50 dark:from-rose-950/25', bar: 'bg-rose-500', badge: 'bg-rose-500/10 text-rose-700 dark:text-rose-300' },
+  { accent: 'cyan', card: 'border-cyan-200 bg-gradient-to-br from-cyan-50 via-background to-background hover:border-cyan-400 dark:border-cyan-900/50 dark:from-cyan-950/25', bar: 'bg-cyan-600', badge: 'bg-cyan-600/10 text-cyan-700 dark:text-cyan-300' },
+  { accent: 'violet', card: 'border-violet-200 bg-gradient-to-br from-violet-50 via-background to-background hover:border-violet-400 dark:border-violet-900/50 dark:from-violet-950/25', bar: 'bg-violet-600', badge: 'bg-violet-600/10 text-violet-700 dark:text-violet-300' },
+]
+
+export function getTemplateAccent(index: number) {
+  return TEMPLATE_ACCENTS[index % TEMPLATE_ACCENTS.length]
+}
+
+export function getFieldStateClass(value?: string) {
+  return value
+    ? 'border-blue-200 bg-white shadow-[0_8px_20px_rgba(37,99,235,0.08)] dark:border-blue-900/60 dark:bg-zinc-950/80'
+    : 'border-dashed border-slate-300 bg-slate-50/70 dark:border-slate-700 dark:bg-zinc-900/50'
+}
+
 export function BuatSurat() {
   const [templates, setTemplates] = useState<TemplateSurat[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateSurat | null>(null)
@@ -245,18 +264,22 @@ export function BuatSurat() {
           </CardContent></Card>
         ) : (
           <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {filteredTemplates.map(t => (
-              <Card key={t.id} className="cursor-pointer hover:border-primary transition-colors" onClick={() => handleSelectTemplate(t)}>
-                <CardContent className="py-3">
-                  <h3 className="font-medium">{t.nama}</h3>
-                  {t.deskripsi && <p className="text-xs text-muted-foreground mt-0.5">{t.deskripsi}</p>}
-                  <div className="flex gap-1.5 mt-2">
-                    <Badge variant="secondary">{JSON.parse(t.placeholders || '[]').length} placeholder</Badge>
-                    {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {filteredTemplates.map((t, index) => {
+              const accent = getTemplateAccent(index)
+              return (
+                <Card key={t.id} className={cn('group relative cursor-pointer overflow-hidden shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', accent.card)} onClick={() => handleSelectTemplate(t)}>
+                  <div className={cn('absolute inset-y-0 left-0 w-1.5', accent.bar)} />
+                  <CardContent className="py-4 pl-5">
+                    <h3 className="font-semibold group-hover:text-blue-700 dark:group-hover:text-blue-300">{t.nama}</h3>
+                    {t.deskripsi && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.deskripsi}</p>}
+                    <div className="flex flex-wrap gap-1.5 mt-3">
+                      <Badge variant="secondary" className={accent.badge}>{JSON.parse(t.placeholders || '[]').length} placeholder</Badge>
+                      {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
@@ -288,7 +311,7 @@ export function BuatSurat() {
 
           {/* Data Surat - nomor & tanggal override (moved to top) */}
           {nomorPlaceholders.length > 0 && (
-            <Card>
+            <Card className="border-blue-200/70 bg-gradient-to-br from-blue-50/80 via-background to-background shadow-sm dark:border-blue-900/50 dark:from-blue-950/20">
               <CardHeader><CardTitle className="text-sm">Data Surat</CardTitle></CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -333,12 +356,12 @@ export function BuatSurat() {
 
           {/* Custom placeholders */}
           {customPlaceholders.length > 0 && (
-            <Card>
+            <Card className="border-blue-200/70 bg-gradient-to-br from-blue-50/70 via-background to-background shadow-sm dark:border-blue-900/50 dark:from-blue-950/20">
               <CardHeader><CardTitle className="text-sm">Data Tambahan</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="grid gap-3 sm:grid-cols-2">
                 {customPlaceholders.map(p => (
-                  <div key={p.token} className="space-y-1">
-                    <Label>{p.field}</Label>
+                  <div key={p.token} className={cn('space-y-1 rounded-xl border p-3 transition-colors', getFieldStateClass(formValues[p.token]))}>
+                    <Label className="text-[11px] uppercase tracking-wide text-blue-700 dark:text-blue-300">{p.field}</Label>
                     <Input value={formValues[p.token] || ''} onChange={e => setFormValues(prev => ({ ...prev, [p.token]: e.target.value }))} placeholder={`Isi ${p.field}`} />
                   </div>
                 ))}
@@ -449,7 +472,7 @@ function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }:
   }
 
   return (
-    <Card>
+    <Card className="border-blue-200/70 bg-gradient-to-br from-blue-50/70 via-background to-background shadow-sm dark:border-blue-900/50 dark:from-blue-950/20">
       <CardHeader><CardTitle className="text-sm">Data Warga {index}</CardTitle></CardHeader>
       <CardContent className="space-y-3">
         <div className="relative">
@@ -469,8 +492,8 @@ function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }:
         <Separator />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {placeholders.map(p => (
-            <div key={p.token} className="space-y-1">
-              <Label className="text-xs">{p.field}</Label>
+            <div key={p.token} className={cn('space-y-1 rounded-xl border p-3 transition-colors', getFieldStateClass(values[p.token]))}>
+              <Label className="text-[11px] uppercase tracking-wide text-blue-700 dark:text-blue-300">{p.field}</Label>
               <Input value={values[p.token] || ''} onChange={e => onChange({ [p.token]: e.target.value })} placeholder={p.field} />
             </div>
           ))}

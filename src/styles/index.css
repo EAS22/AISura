@@ -48,17 +48,17 @@
 }
 
 @utility font-table {
-  font-family: 'Atkinson Hyperlegible', 'Poppins', sans-serif;
-  font-size: 13.5px;
+  font-family: 'Archivo Narrow', 'Poppins', sans-serif;
+  font-size: 14px;
   line-height: 1.45;
-  letter-spacing: 0.005em;
+  letter-spacing: 0.01em;
   color: var(--foreground);
 }
 
 @utility font-data-number {
-  font-family: 'Atkinson Hyperlegible', 'Poppins', sans-serif;
+  font-family: 'Archivo Narrow', 'Poppins', sans-serif;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 }
 
 /* docx-preview: center rendered document at native page size */
