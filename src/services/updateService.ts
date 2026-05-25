@@ -11,7 +11,7 @@ export interface DownloadProgressState {
 }
 
 export function getUpdateBadgeLabel(status: UpdateStatus, availableVersion?: string, currentVersion = '1.0.0') {
-  if (status === 'available' && availableVersion) return 'Update'
+  if (status === 'available') return 'Update'
   return `v${currentVersion}`
 }
 

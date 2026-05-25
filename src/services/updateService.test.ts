@@ -6,6 +6,10 @@ describe('updateService helpers', () => {
     expect(getUpdateBadgeLabel('available', '1.0.1')).toBe('Update')
   })
 
+  it('shows update badge even when updater does not expose available version', () => {
+    expect(getUpdateBadgeLabel('available', undefined, '1.0.0')).toBe('Update')
+  })
+
   it('shows version badge when no update is available', () => {
     expect(getUpdateBadgeLabel('not_available', undefined, '1.0.0')).toBe('v1.0.0')
   })
