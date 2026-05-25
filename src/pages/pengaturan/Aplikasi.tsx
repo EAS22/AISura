@@ -8,6 +8,8 @@ import { Code2, Download, Globe2, ImageIcon, Mail, RotateCcw, ShieldAlert, Spark
 import { useUpdate } from '@/contexts/UpdateContext'
 import { getStoredLoginImage, resetStoredLoginImage, setStoredLoginImage } from '@/services/loginImageService'
 import { createImageDataUrl, SUPPORTED_IMAGE_EXTENSIONS } from '@/services/imageFileService'
+import { cn } from '@/lib/utils'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 export function AplikasiPage() {
   const { confirm, ConfirmDialog } = useConfirm()
@@ -61,14 +63,15 @@ export function AplikasiPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className={crmShell.page}>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Aplikasi</h1>
-        <p className="text-sm text-muted-foreground">Kelola tampilan, backup, update, dan perawatan data aplikasi.</p>
+        <p className={crmShell.eyebrow}>App control</p>
+        <h1 className={crmShell.title}>Aplikasi</h1>
+        <p className={crmShell.subtitle}>Kelola tampilan, backup, update, dan perawatan data aplikasi.</p>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
-        <Card className="overflow-hidden border-blue-200/60 bg-gradient-to-br from-blue-50 via-background to-background shadow-sm dark:border-blue-900/40 dark:from-blue-950/30">
+        <Card className={cn(crmShell.panel, 'overflow-hidden')}>
         <CardContent className="p-0">
           <div className="relative p-5 sm:p-6">
             <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-blue-500/10 blur-2xl" />
@@ -106,7 +109,7 @@ export function AplikasiPage() {
         </CardContent>
         </Card>
 
-        <Card className="overflow-hidden shadow-sm">
+        <Card className={cn(crmShell.card, 'overflow-hidden')}>
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600">
@@ -131,7 +134,7 @@ export function AplikasiPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="shadow-sm">
+        <Card className={crmShell.card}>
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600/10 text-emerald-600">

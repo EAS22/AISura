@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { FilePlus, Trash2, Pencil, Download } from 'lucide-react'
 import { countNomorSlots } from '@/utils/placeholderDetector'
 import type { TemplateSurat, DetectedPlaceholder } from '@/types'
+import { cn } from '@/lib/utils'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 export function TemplateSuratPage() {
   const [templates, setTemplates] = useState<TemplateSurat[]>([])
@@ -122,31 +124,35 @@ export function TemplateSuratPage() {
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Template Surat</h1>
-        <Button size="sm" onClick={() => setUploadModal(true)}>
+    <div className={crmShell.page}>
+      <div className={crmShell.pageHeader}>
+        <div>
+          <p className={crmShell.eyebrow}>Template center</p>
+          <h1 className={crmShell.title}>Template Surat</h1>
+          <p className={crmShell.subtitle}>Kelola DOCX, placeholder, prefix, dan file template.</p>
+        </div>
+        <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setUploadModal(true)}>
           <FilePlus className="mr-1 h-3.5 w-3.5" /> Upload Template
         </Button>
       </div>
 
       {templates.length === 0 ? (
-        <Card><CardContent className="py-8 text-center text-muted-foreground">Belum ada template. Upload template pertama.</CardContent></Card>
+        <Card className={crmShell.card}><CardContent className="py-10 text-center text-muted-foreground">Belum ada template. Upload template pertama.</CardContent></Card>
       ) : (
         <div className="grid gap-3">
           {templates.map(t => {
             const ph = getPlaceholders(t)
             return (
-              <Card key={t.id}>
-                <CardContent className="flex items-center justify-between py-3">
+              <Card key={t.id} className={cn(crmShell.card, 'transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md hover:shadow-blue-100/60 dark:hover:border-blue-900/60 dark:hover:shadow-none')}>
+                <CardContent className="flex items-center justify-between gap-4 py-4">
                   <div className="min-w-0 flex-1">
                     <h3 className="font-medium truncate">{t.nama}</h3>
                     {t.deskripsi && <p className="text-xs text-muted-foreground mt-0.5">{t.deskripsi}</p>}
                     <div className="flex items-center gap-2 mt-1.5">
-                      <Badge variant="secondary">{ph.length} placeholder</Badge>
-                     {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
-                     {t.prefix_surat && <Badge variant="outline">Prefix: {t.prefix_surat}</Badge>}
-                     {countNomorSlots(ph) > 1 && <Badge variant="outline">{countNomorSlots(ph)} nomor</Badge>}
+                      <Badge className="rounded-full bg-blue-50 text-blue-700 hover:bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300">{ph.length} placeholder</Badge>
+                     {t.warga_count > 0 && <Badge variant="outline" className="rounded-full">{t.warga_count} warga</Badge>}
+                     {t.prefix_surat && <Badge variant="outline" className="rounded-full">Prefix: {t.prefix_surat}</Badge>}
+                     {countNomorSlots(ph) > 1 && <Badge variant="outline" className="rounded-full">{countNomorSlots(ph)} nomor</Badge>}
                       <span className="text-[10px] text-muted-foreground">{new Date(t.created_at).toLocaleDateString('id-ID')}</span>
                     </div>
                   </div>

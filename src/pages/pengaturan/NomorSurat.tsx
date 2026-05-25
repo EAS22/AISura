@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label'
 import { getNomorSuratConfig, saveNomorSuratConfig } from '@/services/nomorSuratService'
 import { generateNomorSuratParts } from '@/utils/nomorSuratGenerator'
 import { Hash, Save } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 export function NomorSuratPage() {
   const [format, setFormat] = useState('{S_NOMOR}/{S_KODE_DESA}/{S_BULAN_ROM}/{S_TAHUN}')
@@ -37,15 +39,16 @@ export function NomorSuratPage() {
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   return (
-    <div className="space-y-4">
+    <div className={crmShell.page}>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Nomor Surat</h1>
-        <p className="text-sm text-muted-foreground">Atur format, kode desa, dan nomor urut otomatis.</p>
+        <p className={crmShell.eyebrow}>Numbering control</p>
+        <h1 className={crmShell.title}>Nomor Surat</h1>
+        <p className={crmShell.subtitle}>Atur format, kode desa, dan nomor urut otomatis.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
-          <Card className="shadow-sm">
+          <Card className={crmShell.card}>
             <CardHeader><CardTitle className="text-sm">Format</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="space-y-1">
@@ -60,7 +63,7 @@ export function NomorSuratPage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm">
+          <Card className={crmShell.card}>
             <CardHeader><CardTitle className="text-sm">Counter</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-xl border bg-muted/30 p-3">
@@ -75,7 +78,7 @@ export function NomorSuratPage() {
           </Card>
         </div>
 
-        <Card className="overflow-hidden border-blue-200/60 bg-gradient-to-br from-blue-50 via-background to-background shadow-sm dark:border-blue-900/40 dark:from-blue-950/25">
+        <Card className={cn(crmShell.panel, 'overflow-hidden')}>
           <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Hash className="h-4 w-4 text-blue-600" />Preview</CardTitle></CardHeader>
           <CardContent>
             <div className="rounded-2xl border bg-background/80 p-4">

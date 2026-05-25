@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Search, Copy, Check } from 'lucide-react'
 import { DESA_PLACEHOLDERS, NOMOR_SURAT_PLACEHOLDERS, NOMOR_SURAT_FIELDS, WARGA_FIELDS, PERANGKAT_DESA_FIELDS, PERANGKAT_DESA_ALIASES } from '@/constants/placeholders'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 export function PlaceholderPage() {
   const [search, setSearch] = useState('')
@@ -68,10 +69,11 @@ export function PlaceholderPage() {
   const numberLabel = selectedToken?.includes('Wn_') ? 'Nomor Warga' : 'Nomor Perangkat Desa'
 
   return (
-    <div className="space-y-4">
+    <div className={crmShell.page}>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Kamus Placeholder</h1>
-        <p className="text-sm text-muted-foreground">Klik placeholder untuk menyalin dengan pilihan style</p>
+        <p className={crmShell.eyebrow}>Placeholder library</p>
+        <h1 className={crmShell.title}>Kamus Placeholder</h1>
+        <p className={crmShell.subtitle}>Klik placeholder untuk menyalin dengan pilihan style.</p>
       </div>
 
       <div className="relative max-w-sm">
@@ -80,7 +82,7 @@ export function PlaceholderPage() {
       </div>
 
       {/* Suffix Rules */}
-      <Card>
+      <Card className={crmShell.card}>
         <CardHeader><CardTitle className="text-sm">Aturan Suffix Style</CardTitle></CardHeader>
         <CardContent>
           <Table>

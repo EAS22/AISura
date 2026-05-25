@@ -11,6 +11,8 @@ import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
 import { useConfirm } from '@/hooks/use-confirm'
 import type { Warga } from '@/types'
+import { cn } from '@/lib/utils'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 export function DataWarga() {
   const { confirm, ConfirmDialog } = useConfirm()
@@ -114,16 +116,17 @@ export function DataWarga() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Static header */}
-      <div className="shrink-0 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className={cn(crmShell.card, 'shrink-0 p-4')}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Data Warga</h1>
-            <p className="text-sm text-muted-foreground">{count} data</p>
+            <p className={crmShell.eyebrow}>Citizen database</p>
+            <h1 className={crmShell.title}>Data Warga</h1>
+            <p className={crmShell.subtitle}>{count} data warga tersimpan</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={handleDownloadTemplate}><Download className="mr-1 h-3.5 w-3.5" />Template</Button>
             <Button size="sm" variant="outline" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
-            <Button size="sm" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
+            <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
             {count > 0 && <Button size="sm" variant="destructive" onClick={handleDeleteAll}><Trash2 className="mr-1 h-3.5 w-3.5" />Hapus Semua</Button>}
           </div>
         </div>
@@ -135,7 +138,7 @@ export function DataWarga() {
 
       {/* Scrollable table */}
       <div className="min-h-0 flex-1 overflow-y-auto py-4">
-        <Card className="overflow-hidden border-border/80 shadow-sm">
+        <Card className={cn(crmShell.card, 'overflow-hidden')}>
           <CardContent className="p-0">
             <Table>
               <TableHeader>
@@ -177,7 +180,7 @@ export function DataWarga() {
 
       {/* Static pagination footer */}
       {totalPages > 1 && (
-        <div className="shrink-0 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+        <div className={cn(crmShell.card, 'shrink-0 p-3')}>
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
             <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>

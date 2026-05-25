@@ -12,6 +12,7 @@ import { searchWarga } from '@/services/wargaService'
 import { createImageDataUrl, SUPPORTED_IMAGE_EXTENSIONS } from '@/services/imageFileService'
 import { useConfirm } from '@/hooks/use-confirm'
 import type { DataDesa, PerangkatDesa, Warga } from '@/types'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 const DEFAULT_JABATAN = ['Kepala Desa', 'Sekretaris Desa', 'Kaur TU & Umum', 'Kaur Keuangan', 'Kaur Perencanaan', 'Kasi Pemerintahan', 'Kasi Kesejahteraan', 'Kasi Pelayanan']
 
@@ -74,14 +75,15 @@ export function DataDesaPage() {
   if (loading) return <p className="text-sm text-muted-foreground">Loading...</p>
 
   return (
-    <div className="space-y-4">
+    <div className={crmShell.page}>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Data Desa</h1>
-        <p className="text-sm text-muted-foreground">Lengkapi identitas desa, kop surat, logo, dan perangkat desa.</p>
+        <p className={crmShell.eyebrow}>Village profile</p>
+        <h1 className={crmShell.title}>Data Desa</h1>
+        <p className={crmShell.subtitle}>Lengkapi identitas desa, kop surat, logo, dan perangkat desa.</p>
       </div>
 
       {/* Identitas Desa */}
-      <Card className="shadow-sm">
+      <Card className={crmShell.card}>
         <CardHeader><CardTitle className="text-sm">Identitas Desa</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-3">
           <div className="space-y-1"><Label>Nama Desa</Label><Input value={desa.desa || ''} onChange={e => setDesa({ ...desa, desa: e.target.value })} /></div>
@@ -96,7 +98,7 @@ export function DataDesaPage() {
       </Card>
 
       {/* Kop Surat & Logo */}
-      <Card className="shadow-sm">
+      <Card className={crmShell.card}>
         <CardHeader><CardTitle className="text-sm">Kop Surat & Logo Desa</CardTitle></CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-2">
           <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
@@ -154,7 +156,7 @@ export function DataDesaPage() {
       </Card>
 
       {/* Perangkat Desa - Table */}
-      <Card className="overflow-hidden shadow-sm">
+      <Card className={`${crmShell.card} overflow-hidden`}>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Perangkat Desa</CardTitle>
           <Button size="sm" onClick={openAddModal}><Plus className="mr-1 h-3.5 w-3.5" />Tambah</Button>

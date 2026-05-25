@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { changePassword, updateDisplayName, getDisplayName } from '@/services/authService'
+import { crmShell } from '@/lib/aisura-crm-ui'
 
 export function Profil() {
   const [name, setName] = useState('')
@@ -37,10 +38,14 @@ export function Profil() {
   }
 
   return (
-    <div className="space-y-4 max-w-md">
-      <h1 className="text-2xl font-bold tracking-tight">Profil</h1>
+    <div className={`${crmShell.page} max-w-md`}>
+      <div>
+        <p className={crmShell.eyebrow}>Account</p>
+        <h1 className={crmShell.title}>Profil</h1>
+        <p className={crmShell.subtitle}>Kelola nama tampilan dan password admin.</p>
+      </div>
 
-      <Card>
+      <Card className={crmShell.card}>
         <CardHeader><CardTitle className="text-sm">Nama Pengguna</CardTitle></CardHeader>
         <CardContent className="flex gap-2">
           <Input value={name} onChange={e => setName(e.target.value)} className="flex-1" />
@@ -48,7 +53,7 @@ export function Profil() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={crmShell.card}>
         <CardHeader><CardTitle className="text-sm">Ganti Password</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1"><Label>Password Lama</Label><Input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)} /></div>
