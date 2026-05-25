@@ -9,6 +9,7 @@ import { Plus, Pencil, Trash2, Search, ImageIcon, Save } from 'lucide-react'
 import { getDataDesa, saveDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa, savePerangkatDesa, deletePerangkatDesa } from '@/services/perangkatDesaService'
 import { searchWarga } from '@/services/wargaService'
+import { createImageDataUrl, SUPPORTED_IMAGE_EXTENSIONS } from '@/services/imageFileService'
 import { useConfirm } from '@/hooks/use-confirm'
 import type { DataDesa, PerangkatDesa, Warga } from '@/types'
 
@@ -111,12 +112,10 @@ export function DataDesaPage() {
                 try {
                   const { open } = await import('@tauri-apps/plugin-dialog')
                   const { readFile } = await import('@tauri-apps/plugin-fs')
-                  const filePath = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }], multiple: false })
+                  const filePath = await open({ filters: [{ name: 'Image', extensions: SUPPORTED_IMAGE_EXTENSIONS }], multiple: false })
                   if (!filePath) return
                   const bytes = await readFile(filePath as string)
-                  const base64 = btoa(String.fromCharCode(...bytes))
-                  const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
-                  const dataUrl = `data:image/${ext};base64,${base64}`
+                  const dataUrl = createImageDataUrl(filePath as string, bytes)
                   setDesa({ ...desa, kop_surat: dataUrl })
                 } catch (err) { console.error(err) }
               }}>Upload Kop Surat</Button>
@@ -137,12 +136,10 @@ export function DataDesaPage() {
                 try {
                   const { open } = await import('@tauri-apps/plugin-dialog')
                   const { readFile } = await import('@tauri-apps/plugin-fs')
-                  const filePath = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'webp'] }], multiple: false })
+                  const filePath = await open({ filters: [{ name: 'Image', extensions: SUPPORTED_IMAGE_EXTENSIONS }], multiple: false })
                   if (!filePath) return
                   const bytes = await readFile(filePath as string)
-                  const base64 = btoa(String.fromCharCode(...bytes))
-                  const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
-                  const dataUrl = `data:image/${ext};base64,${base64}`
+                  const dataUrl = createImageDataUrl(filePath as string, bytes)
                   setDesa({ ...desa, logo_desa: dataUrl })
                 } catch (err) { console.error(err) }
               }}>Upload Logo</Button>

@@ -7,6 +7,7 @@ import { useConfirm } from '@/hooks/use-confirm'
 import { Code2, Download, Globe2, ImageIcon, Mail, RotateCcw, ShieldAlert, Sparkles, UploadCloud } from 'lucide-react'
 import { useUpdate } from '@/contexts/UpdateContext'
 import { getStoredLoginImage, resetStoredLoginImage, setStoredLoginImage } from '@/services/loginImageService'
+import { createImageDataUrl, SUPPORTED_IMAGE_EXTENSIONS } from '@/services/imageFileService'
 
 export function AplikasiPage() {
   const { confirm, ConfirmDialog } = useConfirm()
@@ -47,13 +48,10 @@ export function AplikasiPage() {
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')
       const { readFile } = await import('@tauri-apps/plugin-fs')
-      const filePath = await open({ filters: [{ name: 'Image', extensions: ['png', 'jpg', 'jpeg'] }], multiple: false })
+      const filePath = await open({ filters: [{ name: 'Image', extensions: SUPPORTED_IMAGE_EXTENSIONS }], multiple: false })
       if (!filePath) return
       const bytes = await readFile(filePath as string)
-      const base64 = btoa(String.fromCharCode(...bytes))
-      const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
-      const mimeType = ext === 'jpg' ? 'jpeg' : ext
-      const dataUrl = `data:image/${mimeType};base64,${base64}`
+      const dataUrl = createImageDataUrl(filePath as string, bytes)
       setLoginImage(setStoredLoginImage(dataUrl))
     } catch (err) { console.error(err) }
   }

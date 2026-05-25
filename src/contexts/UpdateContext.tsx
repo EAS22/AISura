@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { Update } from '@tauri-apps/plugin-updater'
 import { checkForAppUpdate, downloadAndInstallAppUpdate, type DownloadProgressState, type UpdateStatus } from '@/services/updateService'
+import pkg from '../../package.json'
 
 interface UpdateContextValue {
   status: UpdateStatus
@@ -13,7 +14,7 @@ interface UpdateContextValue {
   installUpdate: () => Promise<void>
 }
 
-const CURRENT_VERSION = '1.0.0'
+export const APP_VERSION = pkg.version
 const UpdateContext = createContext<UpdateContextValue | null>(null)
 
 export function UpdateProvider({ children, enabled }: { children: React.ReactNode; enabled: boolean }) {
@@ -23,6 +24,7 @@ export function UpdateProvider({ children, enabled }: { children: React.ReactNod
   const [notes, setNotes] = useState<string | undefined>()
   const [progress, setProgress] = useState<DownloadProgressState | undefined>()
   const [error, setError] = useState<string | undefined>()
+  const [currentVersion, setCurrentVersion] = useState(APP_VERSION)
 
   const checkUpdate = useCallback(async (silent = false) => {
     setError(undefined)
@@ -60,16 +62,24 @@ export function UpdateProvider({ children, enabled }: { children: React.ReactNod
     checkUpdate(true)
   }, [enabled, checkUpdate])
 
+  useEffect(() => {
+    if (!enabled) return
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then(setCurrentVersion)
+      .catch(() => setCurrentVersion(APP_VERSION))
+  }, [enabled])
+
   const value = useMemo(() => ({
     status,
-    currentVersion: CURRENT_VERSION,
+    currentVersion,
     availableVersion,
     notes,
     progress,
     error,
     checkUpdate,
     installUpdate,
-  }), [status, availableVersion, notes, progress, error, checkUpdate, installUpdate])
+  }), [status, currentVersion, availableVersion, notes, progress, error, checkUpdate, installUpdate])
 
   return <UpdateContext.Provider value={value}>{children}</UpdateContext.Provider>
 }
