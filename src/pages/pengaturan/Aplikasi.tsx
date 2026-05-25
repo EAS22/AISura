@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/hooks/use-confirm'
 import { Code2, Download, Globe2, ImageIcon, Mail, RotateCcw, ShieldAlert, Sparkles, UploadCloud } from 'lucide-react'
 import { useUpdate } from '@/contexts/UpdateContext'
+import { getStoredLoginImage, resetStoredLoginImage, setStoredLoginImage } from '@/services/loginImageService'
 
 export function AplikasiPage() {
   const { confirm, ConfirmDialog } = useConfirm()
@@ -13,8 +14,7 @@ export function AplikasiPage() {
   const [loginImage, setLoginImage] = useState<string | null>(null)
 
   useEffect(() => {
-    const img = localStorage.getItem('aisura-login-image')
-    if (img) setLoginImage(img)
+    setLoginImage(getStoredLoginImage())
   }, [])
 
   const handleBackup = async () => {
@@ -54,14 +54,12 @@ export function AplikasiPage() {
       const ext = (filePath as string).split('.').pop()?.toLowerCase() || 'png'
       const mimeType = ext === 'jpg' ? 'jpeg' : ext
       const dataUrl = `data:image/${mimeType};base64,${base64}`
-      localStorage.setItem('aisura-login-image', dataUrl)
-      setLoginImage(dataUrl)
+      setLoginImage(setStoredLoginImage(dataUrl))
     } catch (err) { console.error(err) }
   }
 
   const handleRemoveLoginImage = () => {
-    localStorage.removeItem('aisura-login-image')
-    setLoginImage(null)
+    setLoginImage(resetStoredLoginImage())
   }
 
   return (
@@ -124,18 +122,11 @@ export function AplikasiPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="overflow-hidden rounded-xl border bg-muted/30">
-              {loginImage ? (
-                <img src={loginImage} alt="Login illustration" className="aspect-video w-full object-cover" />
-              ) : (
-                <div className="flex aspect-video flex-col items-center justify-center text-center text-sm text-muted-foreground">
-                  <ImageIcon className="mb-2 h-8 w-8 opacity-60" />
-                  Menggunakan gambar default
-                </div>
-              )}
+              <img src={loginImage || getStoredLoginImage()} alt="Login illustration" className="aspect-video w-full object-cover" />
             </div>
             <div className="flex flex-col gap-2 sm:flex-row xl:flex-col 2xl:flex-row">
               <Button size="sm" variant="outline" onClick={handleUploadLoginImage}><UploadCloud className="mr-1 h-3.5 w-3.5" />Upload Gambar</Button>
-              {loginImage && <Button size="sm" variant="ghost" onClick={handleRemoveLoginImage}><RotateCcw className="mr-1 h-3.5 w-3.5" />Default</Button>}
+              <Button size="sm" variant="ghost" onClick={handleRemoveLoginImage}><RotateCcw className="mr-1 h-3.5 w-3.5" />Reset ke Default</Button>
             </div>
           </CardContent>
         </Card>

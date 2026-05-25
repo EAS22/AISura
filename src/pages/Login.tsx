@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { createPassword, verifyPassword } from '@/services/authService'
+import { getStoredLoginImage } from '@/services/loginImageService'
 import type { DataDesa } from '@/types'
 
 interface LoginProps {
@@ -15,12 +16,11 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [loginImage, setLoginImage] = useState('/images/login-illustration.png')
+  const [loginImage, setLoginImage] = useState(getStoredLoginImage())
   const [dataDesa, setDataDesa] = useState<Partial<DataDesa> | null>(null)
 
   useEffect(() => {
-    const customImage = localStorage.getItem('aisura-login-image')
-    if (customImage) setLoginImage(customImage)
+    setLoginImage(getStoredLoginImage())
     loadDesaData()
   }, [])
 
