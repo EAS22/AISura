@@ -8,6 +8,30 @@ import JSZip from 'jszip';
 
 const TEMPLATES_SUBDIR = 'templates';
 
+interface TemplateUpdateInput {
+  id: string;
+  nama: string;
+  deskripsi: string;
+  prefixSurat: string;
+  updatedAt: string;
+  placeholders?: ReturnType<typeof detectPlaceholders>;
+  wargaCount?: number;
+}
+
+export function buildTemplateUpdateSql(input: TemplateUpdateInput): { sql: string; params: unknown[] } {
+  if (input.placeholders && typeof input.wargaCount === 'number') {
+    return {
+      sql: 'UPDATE templates SET nama=$1, deskripsi=$2, prefix_surat=$3, placeholders=$4, warga_count=$5, updated_at=$6 WHERE id=$7',
+      params: [input.nama, input.deskripsi, input.prefixSurat, JSON.stringify(input.placeholders), input.wargaCount, input.updatedAt, input.id],
+    };
+  }
+
+  return {
+    sql: 'UPDATE templates SET nama=$1, deskripsi=$2, prefix_surat=$3, updated_at=$4 WHERE id=$5',
+    params: [input.nama, input.deskripsi, input.prefixSurat, input.updatedAt, input.id],
+  };
+}
+
 async function ensureTemplatesDir(): Promise<void> {
   const dir = await appConfigDir();
   const templatesDir = `${dir}/${TEMPLATES_SUBDIR}`;
@@ -61,9 +85,27 @@ export async function uploadTemplate(
   };
 }
 
-export async function updateTemplate(id: string, nama: string, deskripsi: string): Promise<void> {
+export async function updateTemplate(
+  id: string,
+  nama: string,
+  deskripsi: string,
+  prefixSurat: string,
+  fileBytes?: Uint8Array
+): Promise<void> {
   const now = new Date().toISOString();
-  await execute('UPDATE templates SET nama=$1, deskripsi=$2, updated_at=$3 WHERE id=$4', [nama, deskripsi, now, id]);
+  const template = fileBytes ? await getTemplateById(id) : null;
+
+  if (fileBytes && template) {
+    await writeFile(template.file_path, fileBytes, { baseDir: BaseDirectory.AppConfig });
+    const placeholders = await detectPlaceholdersFromDocx(fileBytes);
+    const wargaCount = countWargaSlots(placeholders);
+    const update = buildTemplateUpdateSql({ id, nama, deskripsi, prefixSurat, updatedAt: now, placeholders, wargaCount });
+    await execute(update.sql, update.params);
+    return;
+  }
+
+  const update = buildTemplateUpdateSql({ id, nama, deskripsi, prefixSurat, updatedAt: now });
+  await execute(update.sql, update.params);
 }
 
 export async function deleteTemplate(id: string): Promise<void> {
@@ -79,6 +121,11 @@ export async function deleteTemplate(id: string): Promise<void> {
 
 export async function getTemplateBlob(filePath: string): Promise<Uint8Array> {
   return await readFile(filePath, { baseDir: BaseDirectory.AppConfig });
+}
+
+export async function downloadTemplateToPath(filePath: string, destinationPath: string): Promise<void> {
+  const bytes = await getTemplateBlob(filePath);
+  await writeFile(destinationPath, bytes);
 }
 
 async function detectPlaceholdersFromDocx(fileBytes: Uint8Array): Promise<ReturnType<typeof detectPlaceholders>> {

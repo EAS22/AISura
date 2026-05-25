@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { FilePlus, Trash2, Pencil } from 'lucide-react'
+import { FilePlus, Trash2, Pencil, Download } from 'lucide-react'
 import { countNomorSlots } from '@/utils/placeholderDetector'
 import type { TemplateSurat, DetectedPlaceholder } from '@/types'
 
@@ -25,11 +25,18 @@ export function TemplateSuratPage() {
   const [editNama, setEditNama] = useState('')
   const [editDeskripsi, setEditDeskripsi] = useState('')
   const [editPrefix, setEditPrefix] = useState('')
+  const [editFileBytes, setEditFileBytes] = useState<Uint8Array | null>(null)
+  const [editFileName, setEditFileName] = useState('')
 
   // Delete confirm state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   useEffect(() => { loadTemplates() }, [])
+
+  const getTemplateDownloadName = (template: TemplateSurat) => {
+    const safeName = template.nama.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ') || 'template-surat'
+    return `${safeName}.docx`
+  }
 
   const loadTemplates = async () => {
     try {
@@ -62,19 +69,48 @@ export function TemplateSuratPage() {
     } catch (err) { alert('Gagal menghapus'); console.error(err) }
   }
 
+  const handleDownloadTemplate = async (template: TemplateSurat) => {
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const svc = await import('@/services/templateService')
+      const destinationPath = await save({
+        defaultPath: getTemplateDownloadName(template),
+        filters: [{ name: 'Word', extensions: ['docx'] }],
+      })
+      if (!destinationPath) return
+      await svc.downloadTemplateToPath(template.file_path, destinationPath)
+    } catch (err) { alert('Gagal download template'); console.error(err) }
+  }
+
   const openEditModal = (t: TemplateSurat) => {
     setEditId(t.id)
     setEditNama(t.nama)
     setEditDeskripsi(t.deskripsi)
     setEditPrefix(t.prefix_surat || '')
+    setEditFileBytes(null)
+    setEditFileName('')
     setEditModal(true)
+  }
+
+  const handlePickReplacementDocx = async () => {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const { readFile } = await import('@tauri-apps/plugin-fs')
+      const filePath = await open({ filters: [{ name: 'Word', extensions: ['docx'] }], multiple: false })
+      if (!filePath) return
+      const bytes = await readFile(filePath as string)
+      setEditFileBytes(bytes)
+      setEditFileName((filePath as string).split(/[\\/]/).pop() || 'template.docx')
+    } catch (err) { alert('Gagal memilih file DOCX'); console.error(err) }
   }
 
   const handleSaveEdit = async () => {
     try {
       const svc = await import('@/services/templateService')
-      await svc.updateTemplate(editId, editNama, editDeskripsi)
+      await svc.updateTemplate(editId, editNama, editDeskripsi, editPrefix, editFileBytes || undefined)
       setEditModal(false)
+      setEditFileBytes(null)
+      setEditFileName('')
       await loadTemplates()
     } catch (err) { alert('Gagal menyimpan'); console.error(err) }
   }
@@ -115,6 +151,9 @@ export function TemplateSuratPage() {
                     </div>
                   </div>
                   <div className="flex gap-1">
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDownloadTemplate(t)} title="Download template DOCX">
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditModal(t)}>
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -175,6 +214,20 @@ export function TemplateSuratPage() {
             <div className="space-y-1">
               <Label>Prefix Surat</Label>
               <Input value={editPrefix} onChange={e => setEditPrefix(e.target.value)} placeholder="SKD, SKU, SP, dll." />
+            </div>
+            <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label>File DOCX</Label>
+                  <p className="text-[10px] text-muted-foreground">Ganti file template tanpa membuat template baru.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={handlePickReplacementDocx}>Ganti File</Button>
+              </div>
+              {editFileName && (
+                <p className="rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground">
+                  File baru: <span className="font-medium text-foreground">{editFileName}</span>. Placeholder akan diperbarui saat disimpan.
+                </p>
+              )}
             </div>
           </div>
           <DialogFooter>
