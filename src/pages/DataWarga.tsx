@@ -337,7 +337,7 @@ function DetailGroup({ title, children }: { title: string; children: React.React
   return (
     <div>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{title}</p>
-      <div className="grid grid-cols-2 gap-2 rounded-xl border bg-slate-50/70 p-3 dark:bg-zinc-900/50">
+      <div className="grid grid-cols-1 gap-3 rounded-xl border bg-slate-50/70 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:bg-zinc-900/50">
         {children}
       </div>
     </div>
@@ -347,7 +347,7 @@ function DetailGroup({ title, children }: { title: string; children: React.React
 function DetailItem({ label, value, bold, mono, colSpan }: { label: string; value?: string | number; bold?: boolean; mono?: boolean; colSpan?: boolean }) {
   const display = value === '' || value === null || value === undefined ? '-' : value
   return (
-    <div className={cn('space-y-0.5', colSpan && 'col-span-2')}>
+    <div className={cn('space-y-0.5', colSpan && 'col-span-full')}>
       <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className={cn('text-sm break-words', bold && 'font-semibold', mono && 'font-data-number')}>{display}</p>
     </div>
