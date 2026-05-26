@@ -227,34 +227,53 @@ function RiwayatDetailView({ riwayat, placeholders, loading }: { riwayat: Riwaya
   }
 
   // Group placeholders by category prefix
-  const groups: Record<string, [string, string][]> = {
+  const baseGroups: Record<string, [string, string][]> = {
     'Nomor Surat': [],
-    'Warga': [],
     'Perangkat Desa': [],
     'Desa': [],
     'Lainnya': [],
   }
+  // Warga split per slot (W1, W2, ...) supaya kontainer terpisah
+  const wargaBySlot: Record<number, [string, string][]> = {}
 
   const DESA_TOKENS = ['DESA', 'KECAMATAN', 'KABUPATEN', 'PROVINSI', 'KODE_POS', 'TELEPON_DESA', 'EMAIL_DESA', 'ALAMAT_KANTOR_DESA', 'KOP_SURAT']
   const PERANGKAT_ALIASES = ['KEPALA_DESA', 'NIK_KEPALA_DESA', 'NIPD_KEPALA_DESA', 'JABATAN_KEPALA_DESA', 'ALAMAT_KEPALA_DESA', 'SEKRETARIS_DESA', 'NIK_SEKRETARIS_DESA', 'NIPD_SEKRETARIS_DESA', 'JABATAN_SEKRETARIS_DESA', 'ALAMAT_SEKRETARIS_DESA']
 
   for (const [key, value] of Object.entries(placeholders)) {
+    const wargaMatch = key.match(/^W(\d+)_/)
+    if (wargaMatch) {
+      const slot = parseInt(wargaMatch[1], 10)
+      if (!wargaBySlot[slot]) wargaBySlot[slot] = []
+      wargaBySlot[slot].push([key, value])
+      continue
+    }
     if (/^N\d+_/.test(key) || key === 'NOMOR_SURAT' || key.startsWith('S_')) {
-      groups['Nomor Surat'].push([key, value])
-    } else if (/^W\d+_/.test(key)) {
-      groups['Warga'].push([key, value])
+      baseGroups['Nomor Surat'].push([key, value])
     } else if (/^PD\d+_/.test(key) || PERANGKAT_ALIASES.includes(key.replace(/_(U|L|P)$/, ''))) {
-      groups['Perangkat Desa'].push([key, value])
+      baseGroups['Perangkat Desa'].push([key, value])
     } else if (DESA_TOKENS.includes(key.replace(/_(U|L|P)$/, ''))) {
-      groups['Desa'].push([key, value])
+      baseGroups['Desa'].push([key, value])
     } else {
-      groups['Lainnya'].push([key, value])
+      baseGroups['Lainnya'].push([key, value])
     }
   }
 
   // Sort each group alphabetically (with W1, W2, ... ordered numerically)
   const slotSort = (a: [string, string], b: [string, string]) => a[0].localeCompare(b[0], 'en', { numeric: true })
-  for (const k of Object.keys(groups)) groups[k].sort(slotSort)
+  for (const k of Object.keys(baseGroups)) baseGroups[k].sort(slotSort)
+  for (const k of Object.keys(wargaBySlot)) wargaBySlot[parseInt(k, 10)].sort(slotSort)
+
+  const wargaSlotOrder = Object.keys(wargaBySlot).map(Number).sort((a, b) => a - b)
+
+  // Final ordered list: Nomor Surat → Warga 1..N → Perangkat Desa → Desa → Lainnya
+  const orderedGroups: { title: string; entries: [string, string][] }[] = []
+  if (baseGroups['Nomor Surat'].length) orderedGroups.push({ title: 'Data Nomor Surat', entries: baseGroups['Nomor Surat'] })
+  for (const slot of wargaSlotOrder) {
+    orderedGroups.push({ title: `Data Warga ${slot}`, entries: wargaBySlot[slot] })
+  }
+  if (baseGroups['Perangkat Desa'].length) orderedGroups.push({ title: 'Data Perangkat Desa', entries: baseGroups['Perangkat Desa'] })
+  if (baseGroups['Desa'].length) orderedGroups.push({ title: 'Data Desa', entries: baseGroups['Desa'] })
+  if (baseGroups['Lainnya'].length) orderedGroups.push({ title: 'Data Lainnya', entries: baseGroups['Lainnya'] })
 
   return (
     <div className="space-y-4">
@@ -289,8 +308,8 @@ function RiwayatDetailView({ riwayat, placeholders, loading }: { riwayat: Riwaya
         </div>
       ) : (
         <>
-          {Object.entries(groups).map(([title, entries]) => entries.length > 0 && (
-            <DetailGroup key={title} title={`Data ${title}`}>
+          {orderedGroups.map(({ title, entries }) => (
+            <DetailGroup key={title} title={title}>
               {entries.map(([key, value]) => {
                 const isImage = typeof value === 'string' && value.startsWith('data:image/')
                 return (
@@ -305,7 +324,7 @@ function RiwayatDetailView({ riwayat, placeholders, loading }: { riwayat: Riwaya
               })}
             </DetailGroup>
           ))}
-          {Object.values(groups).every(g => g.length === 0) && (
+          {orderedGroups.length === 0 && (
             <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
               Tidak ada data placeholder tersimpan untuk riwayat ini.
             </div>
