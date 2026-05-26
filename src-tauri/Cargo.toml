@@ -1,6 +1,6 @@
 [package]
 name = "aisura"
-version = "1.0.3"
+version = "1.0.4"
 description = "AISura - Aplikasi Surat Otomatis Desa"
 authors = ["EAS Creative Studio <dev@eas.biz.id>"]
 edition = "2021"

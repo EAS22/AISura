@@ -30,7 +30,7 @@ dependencies = [
 
 [[package]]
 name = "aisura"
-version = "1.0.1"
+version = "1.0.4"
 dependencies = [
  "serde",
  "serde_json",
