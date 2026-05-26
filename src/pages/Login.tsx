@@ -2,8 +2,14 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { PasswordInput } from '@/components/password-input'
+import { ThemeSwitch } from '@/components/theme-switch'
 import { createPassword, verifyPassword } from '@/services/authService'
 import { getStoredLoginImage } from '@/services/loginImageService'
+import { APP_VERSION } from '@/contexts/UpdateContext'
+import { cn } from '@/lib/utils'
+import { ShieldCheck, Sparkles } from 'lucide-react'
 import type { DataDesa } from '@/types'
 
 interface LoginProps {
@@ -14,6 +20,8 @@ interface LoginProps {
 export function Login({ isSetup, onSuccess }: LoginProps) {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [loginImage, setLoginImage] = useState(getStoredLoginImage())
@@ -41,7 +49,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
       if (isSetup) {
         if (password.length < 4) { setError('Password minimal 4 karakter'); setLoading(false); return }
         if (password !== confirmPassword) { setError('Password tidak cocok'); setLoading(false); return }
-        await createPassword(password)
+        await createPassword(password, displayName.trim() || undefined)
         onSuccess()
       } else {
         const valid = await verifyPassword(password)
@@ -51,97 +59,181 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
     } catch { setError('Terjadi kesalahan') } finally { setLoading(false) }
   }
 
+  const desaSubtitle = [
+    dataDesa?.kecamatan && `Kec. ${dataDesa.kecamatan}`,
+    dataDesa?.kabupaten && `Kab. ${dataDesa.kabupaten}`,
+  ].filter(Boolean).join(' • ')
+
   return (
-    <div className="relative min-h-svh w-full overflow-hidden">
-      {/* Fullscreen background image */}
-      <img
-        src={loginImage}
-        alt=""
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+    <div className="relative grid min-h-svh w-full lg:grid-cols-2">
+      {/* Theme switch - top right corner across entire screen */}
+      <div className="absolute right-4 top-4 z-30">
+        <ThemeSwitch />
+      </div>
 
-      {/* Right overlay gradient: 90% → 80% → 0%, width 45% */}
-      <div className="absolute inset-y-0 right-0 w-full sm:w-[45%] bg-gradient-to-l from-background/90 via-background/80 to-transparent" />
+      {/* === Brand panel (kiri) === */}
+      <div className="relative hidden overflow-hidden bg-slate-950 lg:block">
+        <img
+          src={loginImage}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover opacity-90"
+        />
+        {/* Multi-layer gradient overlay for legibility */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-950/60 via-slate-950/70 to-slate-950/95" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.25),_transparent_55%)]" />
 
-      {/* Form content - positioned on right, shifted closer to right edge */}
-      <div className="relative z-10 flex min-h-svh items-center justify-end">
-        <div className="w-full sm:w-[35%] px-8 sm:pl-8 sm:pr-0 space-y-6 flex flex-col items-center">
+        {/* Top-left: brand */}
+        <div className="absolute left-8 top-8 flex items-center gap-2 text-white">
+          <span className="text-3xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
+            <span className="text-blue-400">AI</span>
+            <span>Sura</span>
+          </span>
+          <span className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider backdrop-blur">
+            v{APP_VERSION}
+          </span>
+        </div>
 
-          {/* Desa identity (shown only if data exists) */}
-          {dataDesa && (
-            <div className="flex flex-col items-center gap-2 text-center">
-              {dataDesa.logo_desa && (
-                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-[52px] w-[52px] object-contain" />
+        {/* Bottom-left: tagline + desa identity card */}
+        <div className="absolute inset-x-8 bottom-10 space-y-6 text-white">
+          <div className="space-y-3">
+            <p className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium backdrop-blur">
+              <Sparkles className="h-3.5 w-3.5" />
+              Aplikasi Surat Otomatis Desa
+            </p>
+            <h2 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
+              Operasional surat<br />desa lebih rapi.
+            </h2>
+            <p className="max-w-md text-sm leading-relaxed text-white/75">
+              Kelola template DOCX, data warga, nomor surat otomatis,
+              dan riwayat administrasi dalam satu workspace desktop.
+            </p>
+          </div>
+
+          {dataDesa?.desa && (
+            <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-md">
+              {dataDesa.logo_desa ? (
+                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 shrink-0 object-contain" />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/20">
+                  <ShieldCheck className="h-6 w-6 text-blue-300" />
+                </div>
               )}
-              <div>
-                <p className="text-sm font-semibold text-foreground">Pemerintah Desa {dataDesa.desa}</p>
-                <p className="text-xs text-muted-foreground">
-                  {[dataDesa.kecamatan && `Kec. ${dataDesa.kecamatan}`, dataDesa.kabupaten && `Kab. ${dataDesa.kabupaten}`].filter(Boolean).join(', ')}
-                </p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">Pemerintah Desa {dataDesa.desa}</p>
+                {desaSubtitle && (
+                  <p className="truncate text-xs text-white/65">{desaSubtitle}</p>
+                )}
               </div>
             </div>
           )}
+        </div>
+      </div>
 
-          {/* Logo App */}
-          <div className="text-center">
-            <span className="text-4xl font-bold" style={{ fontFamily: "'Unica One', cursive" }}>
-              <span className="text-blue-600">AI</span>
-              <span className="text-black dark:text-white">Sura</span>
-            </span>
-            <p className="text-sm text-muted-foreground mt-1">Aplikasi Surat Otomatis Desa</p>
-          </div>
+      {/* === Form panel (kanan) === */}
+      <div className="relative flex min-h-svh items-center justify-center px-6 py-12 lg:px-10">
+        {/* Mobile only: small brand on top */}
+        <div className="absolute left-6 top-6 lg:hidden">
+          <span className="text-2xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
+            <span className="text-blue-600">AI</span>
+            <span className="text-foreground">Sura</span>
+          </span>
+        </div>
 
+        <div className="w-full max-w-sm space-y-6">
           {/* Heading */}
-          <div className="space-y-1 text-center">
-            <h2 className="text-xl font-semibold">{isSetup ? 'Buat Password' : 'Selamat Datang'}</h2>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold tracking-tight">
+              {isSetup ? 'Buat Password' : 'Selamat Datang'}
+            </h1>
             <p className="text-sm text-muted-foreground">
-              {isSetup ? 'Buat password untuk mengamankan aplikasi' : 'Masukkan password untuk melanjutkan'}
+              {isSetup
+                ? 'Atur password untuk mengamankan aplikasi sebelum mulai.'
+                : 'Masukkan password untuk masuk ke workspace AISura.'}
             </p>
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4 w-full max-w-xs">
-            <div className="space-y-2">
-              <div className="relative">
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="Masukkan password"
-                  className="bg-background/80 backdrop-blur-sm text-center pr-20"
-                />
-                <Label htmlFor="password" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                  {isSetup ? 'Password' : 'Password'}
-                </Label>
-              </div>
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
             {isSetup && (
               <div className="space-y-2">
-                <div className="relative">
-                  <Input
-                    id="confirm"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={e => setConfirmPassword(e.target.value)}
-                    placeholder="Ulangi password"
-                    className="bg-background/80 backdrop-blur-sm text-center pr-24"
-                  />
-                  <Label htmlFor="confirm" className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                    Konfirmasi
-                  </Label>
-                </div>
+                <Label htmlFor="display-name">Nama Pengguna <span className="text-muted-foreground">(opsional)</span></Label>
+                <Input
+                  id="display-name"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="Admin Desa"
+                  autoComplete="name"
+                />
               </div>
             )}
-            {error && <p className="text-sm text-destructive text-center">{error}</p>}
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Loading...' : isSetup ? 'Buat Password' : 'Masuk'}
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <PasswordInput
+                id="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={isSetup ? 'Minimal 4 karakter' : 'Masukkan password'}
+                autoComplete={isSetup ? 'new-password' : 'current-password'}
+                autoFocus
+              />
+            </div>
+
+            {isSetup && (
+              <div className="space-y-2">
+                <Label htmlFor="confirm">Konfirmasi Password</Label>
+                <PasswordInput
+                  id="confirm"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi password"
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
+
+            {!isSetup && (
+              <div className="flex items-center justify-between">
+                <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground/80">
+                  <Checkbox
+                    checked={remember}
+                    onCheckedChange={(v) => setRemember(Boolean(v))}
+                  />
+                  Ingat saya
+                </label>
+                <span className="text-xs text-muted-foreground">Single password</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </div>
+            )}
+
+            <Button
+              type="submit"
+              className={cn('w-full rounded-xl bg-blue-600 hover:bg-blue-700', loading && 'opacity-90')}
+              disabled={loading}
+            >
+              {loading ? 'Memproses...' : isSetup ? 'Buat Password' : 'Masuk'}
             </Button>
           </form>
 
-          <p className="text-[10px] text-muted-foreground text-center">
-            EAS Creative Studio • v1.0.0
-          </p>
+          {/* Helper / footer block */}
+          <div className="space-y-3">
+            {!isSetup && (
+              <p className="text-center text-xs text-muted-foreground">
+                Lupa password? Reset via{' '}
+                <span className="font-medium text-foreground">Pengaturan &gt; Aplikasi</span>{' '}
+                pada perangkat dengan akses.
+              </p>
+            )}
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>© {new Date().getFullYear()} EAS Creative Studio</span>
+              <span>v{APP_VERSION}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
