@@ -29,7 +29,13 @@ export function StatusPanel({ status, onPreview, busy }: Props) {
               : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
           )}
         >
-          {status.readyToPreview ? 'Siap preview' : 'Sedang diisi'}
+          {status.currentStep === 'ready'
+            ? 'Siap preview'
+            : status.currentStep === 'ask_warga'
+              ? `Isi W${status.nextWargaSlot}`
+              : status.currentStep === 'ask_custom'
+                ? `Isi ${status.nextCustomToken}`
+                : 'Pilih template'}
         </span>
       </div>
 
@@ -71,6 +77,29 @@ export function StatusPanel({ status, onPreview, busy }: Props) {
         <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-300">
           {customMissing} field custom belum diisi: {status.missingCustom.join(', ')}
         </p>
+      )}
+
+      {status.allCustomTokens.length > 0 && (
+        <div className="mt-2 space-y-1">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Field tambahan ({status.allCustomTokens.length - customMissing}/{status.allCustomTokens.length})
+          </p>
+          <div className="space-y-1">
+            {status.allCustomTokens.map((tok) => {
+              const filled = !status.missingCustom.includes(tok)
+              return (
+                <div key={tok} className="flex items-center gap-2 rounded-lg border bg-background/50 px-2 py-1 text-[11px]">
+                  {filled ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                  ) : (
+                    <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  )}
+                  <span className="font-data-number truncate">{tok}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       )}
 
       <Button

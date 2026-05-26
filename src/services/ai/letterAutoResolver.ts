@@ -200,9 +200,14 @@ export interface PreparedLetter {
   /** Tokens still missing — broken down by category for AI to know what to ask. */
   missing: {
     warga: { slot: number; tokens: string[] }[]
+    /** Full tokens (with modifier) that are still empty. */
     custom: string[]
     other: string[]
   }
+  /** Distinct custom token base names (no modifier suffix). */
+  allCustomBases: string[]
+  /** Distinct custom base names that are still missing a value. */
+  missingCustomBases: string[]
   /** Slot map for warga (so AI can introspect which slots are filled). */
   wargaSlots: { slot: number; warga_id?: string; nama?: string }[]
   /** Snapshot of nomor surat preview values without consuming counter. */
@@ -297,8 +302,24 @@ export async function buildPreparedLetter(input: BuildPreparedLetterInput): Prom
   // Build resolved values for every detected token
   const values: Record<string, string> = {}
   const missingWargaBySlot = new Map<number, string[]>()
-  const missingCustom: string[] = []
+  // Track unique custom base tokens (no modifier) and which are still missing.
+  const allCustomBases = new Set<string>()
+  const filledCustomBases = new Set<string>()
+  const missingCustomFullTokens: string[] = []
   const missingOther: string[] = []
+
+  // Build a case-insensitive index of user-supplied custom values keyed by base
+  // token. Keys are stored UPPERCASE for lookup.
+  const customLookup = new Map<string, string>()
+  if (input.customValues) {
+    for (const [k, v] of Object.entries(input.customValues)) {
+      const cleaned = k.replace(/^\{|\}$/g, '').trim()
+      if (!cleaned) continue
+      // Strip a possible suffix the user might have typed (rare).
+      const { base } = splitTokenAndModifier(cleaned.toUpperCase())
+      customLookup.set(base, v)
+    }
+  }
 
   for (const ph of placeholders) {
     const resolved = resolveSinglePlaceholder(ph.token, ctx)
@@ -315,17 +336,15 @@ export async function buildPreparedLetter(input: BuildPreparedLetterInput): Prom
       continue
     }
     if (ph.kategori === 'custom') {
-      missingCustom.push(ph.token)
-      // Apply user-supplied custom value if present
-      if (input.customValues && ph.token in input.customValues) {
-        values[ph.token] = input.customValues[ph.token]
+      const { base, modifier } = splitTokenAndModifier(ph.token)
+      allCustomBases.add(base)
+      const supplied = customLookup.get(base.toUpperCase())
+      if (supplied !== undefined && supplied !== '') {
+        values[ph.token] = applyTextModifier(supplied, modifier)
+        filledCustomBases.add(base)
       } else {
-        const { base, modifier } = splitTokenAndModifier(ph.token)
-        if (input.customValues && base in input.customValues) {
-          values[ph.token] = applyTextModifier(input.customValues[base], modifier)
-        } else {
-          values[ph.token] = ''
-        }
+        values[ph.token] = ''
+        missingCustomFullTokens.push(ph.token)
       }
       continue
     }
@@ -351,9 +370,13 @@ export async function buildPreparedLetter(input: BuildPreparedLetterInput): Prom
         slot,
         tokens: missingWargaBySlot.get(slot) ?? [],
       })),
-      custom: missingCustom,
+      custom: missingCustomFullTokens,
       other: missingOther,
     },
+    allCustomBases: Array.from(allCustomBases).sort(),
+    missingCustomBases: Array.from(allCustomBases)
+      .filter((b) => !filledCustomBases.has(b))
+      .sort(),
     wargaSlots: allWargaSlots.map((slot) => {
       const w = wargaSlotsMap.get(slot)
       return { slot, warga_id: w?.id, nama: w?.nama }

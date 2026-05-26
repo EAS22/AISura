@@ -137,6 +137,8 @@ export interface AILetterStatus {
   slots: { slot: number; nama?: string }[]
   /** Custom tokens still empty. */
   missingCustom: string[]
+  /** All custom tokens from this template (filled + unfilled), original casing. */
+  allCustomTokens: string[]
   /** Which date will be used (string display). */
   defaultDate: string
   /** Preview of the next nomor surat. */
@@ -144,4 +146,12 @@ export interface AILetterStatus {
   readyToPreview: boolean
   /** Resolved values map for preview when readyToPreview is true. */
   values?: Record<string, string>
+  /** State machine — current step in the letter creation flow. */
+  currentStep: FlowStep
+  /** Next warga slot to fill (when currentStep === 'ask_warga'). */
+  nextWargaSlot?: number
+  /** Next custom token to fill (when currentStep === 'ask_custom'). */
+  nextCustomToken?: string
 }
+
+export type FlowStep = 'ask_template' | 'ask_warga' | 'ask_custom' | 'ready'

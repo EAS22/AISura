@@ -204,6 +204,7 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
             }
             setMessages((prev) => [...prev, uiToolMsg])
             if (result.raw?.quickReplies && result.raw.quickReplies.choices.length > 0) {
+              // Override (not append): hanya choice set TERAKHIR yang aktif.
               latestQuickReplies = result.raw.quickReplies
             }
             if (result.raw?.status) {
