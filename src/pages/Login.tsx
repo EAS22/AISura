@@ -65,7 +65,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   ].filter(Boolean).join(' • ')
 
   return (
-    <div className="relative grid min-h-svh w-full lg:grid-cols-[65fr_35fr]">
+    <div className="relative grid min-h-svh w-full lg:grid-cols-[70fr_30fr]">
       {/* Theme switch - top right corner across entire screen */}
       <div className="absolute right-4 top-4 z-30">
         <ThemeSwitch />
@@ -130,16 +130,36 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
       </div>
 
       {/* === Form panel (kanan) === */}
-      <div className="relative flex min-h-svh items-center justify-center px-6 py-12 lg:px-10">
+      <div className="relative flex min-h-svh items-center justify-center overflow-hidden px-6 py-12 lg:px-10">
+        {/* Background texture: subtle dot grid + soft radial glow */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.35] dark:opacity-25"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 1px 1px, rgb(148 163 184 / 0.45) 1px, transparent 0)',
+            backgroundSize: '18px 18px',
+          }}
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_rgba(37,99,235,0.10),_transparent_60%)] dark:bg-[radial-gradient(circle_at_50%_0%,_rgba(37,99,235,0.18),_transparent_60%)]"
+        />
+        {/* Top + bottom fade so dots don't crowd edges */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background via-transparent to-background"
+        />
+
         {/* Mobile only: small brand on top */}
-        <div className="absolute left-6 top-6 lg:hidden">
+        <div className="absolute left-6 top-6 z-10 lg:hidden">
           <span className="text-2xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
             <span className="text-blue-600">AI</span>
             <span className="text-foreground">Sura</span>
           </span>
         </div>
 
-        <div className="w-full max-w-sm space-y-6">
+        <div className="relative z-10 w-full max-w-sm space-y-6">
           {/* Heading */}
           <div className="space-y-2">
             <h1 className="text-3xl font-semibold tracking-tight">
@@ -148,7 +168,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
             <p className="text-sm text-muted-foreground">
               {isSetup
                 ? 'Atur password untuk mengamankan aplikasi sebelum mulai.'
-                : 'Masukkan password untuk masuk ke workspace AISura.'}
+                : 'Masukkan password untuk masuk.'}
             </p>
           </div>
 
