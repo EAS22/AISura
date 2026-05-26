@@ -160,6 +160,22 @@ export async function initDatabase(): Promise<Database> {
     )
   `);
 
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS ai_config (
+      id TEXT PRIMARY KEY,
+      enabled INTEGER DEFAULT 0,
+      use_default INTEGER DEFAULT 1,
+      provider TEXT DEFAULT 'groq',
+      base_url TEXT DEFAULT '',
+      api_key TEXT DEFAULT '',
+      model TEXT DEFAULT '',
+      temperature REAL DEFAULT 0.3,
+      privacy_acknowledged INTEGER DEFAULT 0,
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `);
+
   return db;
 }
 

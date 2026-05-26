@@ -9,6 +9,7 @@ import {
   Building2,
   Hash,
   Monitor,
+  Sparkles,
 } from 'lucide-react'
 
 export const sidebarData = {
@@ -41,6 +42,7 @@ export const sidebarData = {
       items: [
         { title: 'Data Desa', url: '/pengaturan/data-desa', icon: Building2 },
         { title: 'Nomor Surat', url: '/pengaturan/nomor-surat', icon: Hash },
+        { title: 'AI', url: '/pengaturan/ai', icon: Sparkles },
         { title: 'Aplikasi', url: '/pengaturan/aplikasi', icon: Monitor },
       ],
     },

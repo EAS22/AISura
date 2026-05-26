@@ -5,13 +5,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { FilePlus, Trash2, Pencil, Download } from 'lucide-react'
+import { FilePlus, Trash2, Pencil, Download, Sparkles } from 'lucide-react'
 import { countNomorSlots } from '@/utils/placeholderDetector'
 import type { TemplateSurat, DetectedPlaceholder } from '@/types'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
+import { useAI } from '@/contexts/AIContext'
 
 export function TemplateSuratPage() {
+  const ai = useAI()
   const [templates, setTemplates] = useState<TemplateSurat[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -131,9 +133,22 @@ export function TemplateSuratPage() {
           <h1 className={crmShell.title}>Template Surat</h1>
           <p className={crmShell.subtitle}>Kelola DOCX, placeholder, prefix, dan file template.</p>
         </div>
-        <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setUploadModal(true)}>
-          <FilePlus className="mr-1 h-3.5 w-3.5" /> Upload Template
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => ai.openDrawer({ mode: 'template' })}
+            disabled={!ai.credentials}
+            title={ai.credentials ? 'Saran placeholder pakai AI' : 'Aktifkan AI di Pengaturan dulu'}
+          >
+            <Sparkles className="mr-1 h-3.5 w-3.5 text-blue-600" />
+            Saran AI
+          </Button>
+          <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setUploadModal(true)}>
+            <FilePlus className="mr-1 h-3.5 w-3.5" /> Upload Template
+          </Button>
+        </div>
       </div>
 
       {templates.length === 0 ? (

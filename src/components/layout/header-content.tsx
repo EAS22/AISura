@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Sun, Moon, User, LogOut, Search } from 'lucide-react'
+import { Sun, Moon, User, LogOut, Search, Sparkles } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -16,6 +16,7 @@ import { useTheme } from '@/context/theme-provider'
 import { useNavigationContext } from '@/lib/router'
 import { getDisplayName } from '@/services/authService'
 import { getDisplayNameInitials } from '@/lib/utils'
+import { useAI } from '@/contexts/AIContext'
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Dashboard',
@@ -27,6 +28,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/pengaturan/data-desa': 'Data Desa',
   '/pengaturan/nomor-surat': 'Nomor Surat',
   '/pengaturan/aplikasi': 'Aplikasi',
+  '/pengaturan/ai': 'AI',
   '/profil': 'Profil',
 }
 
@@ -36,6 +38,7 @@ const BREADCRUMBS: Record<string, string[]> = {
   '/pengaturan/data-desa': ['Pengaturan', 'Data Desa'],
   '/pengaturan/nomor-surat': ['Pengaturan', 'Nomor Surat'],
   '/pengaturan/aplikasi': ['Pengaturan', 'Aplikasi'],
+  '/pengaturan/ai': ['Pengaturan', 'AI'],
 }
 
 interface HeaderContentProps {
@@ -45,6 +48,7 @@ interface HeaderContentProps {
 export function HeaderContent({ onLogout }: HeaderContentProps) {
   const { theme, setTheme } = useTheme()
   const { currentPath, navigate } = useNavigationContext()
+  const ai = useAI()
   const [clock, setClock] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -142,6 +146,19 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
       >
         {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </Button>
+
+      {/* AI assistant trigger */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+        onClick={() =>
+          ai.credentials ? ai.openDrawer({ mode: 'chat' }) : navigate('/pengaturan/ai')
+        }
+        title={ai.credentials ? 'Asisten AI' : 'Aktifkan AI di pengaturan'}
+      >
+        <Sparkles className="h-4 w-4" />
       </Button>
 
       {/* Clock */}

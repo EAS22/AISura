@@ -4,6 +4,8 @@ import { hasPassword, getDisplayName } from './services/authService'
 import { ThemeProvider } from '@/context/theme-provider'
 import { LayoutProvider } from '@/context/layout-provider'
 import { UpdateProvider } from '@/contexts/UpdateContext'
+import { AIProvider, useAI } from '@/contexts/AIContext'
+import { AIDrawer } from '@/components/ai/AIDrawer'
 import { NavigationContext } from '@/lib/router'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
@@ -20,6 +22,7 @@ import { RiwayatSuratPage } from '@/pages/RiwayatSurat'
 import { DataDesaPage } from '@/pages/pengaturan/DataDesa'
 import { NomorSuratPage } from '@/pages/pengaturan/NomorSurat'
 import { AplikasiPage } from '@/pages/pengaturan/Aplikasi'
+import { AIPage } from '@/pages/pengaturan/AI'
 import { Profil } from '@/pages/Profil'
 import { sidebarData } from '@/config/sidebar-data'
 import type { SidebarData } from '@/components/layout/types'
@@ -90,6 +93,7 @@ function App() {
         case '/pengaturan/data-desa': return <DataDesaPage />
         case '/pengaturan/nomor-surat': return <NomorSuratPage />
         case '/pengaturan/aplikasi': return <AplikasiPage />
+        case '/pengaturan/ai': return <AIPage />
         case '/profil': return <Profil />
         default: return <Dashboard />
       }
@@ -107,17 +111,20 @@ function App() {
       <LayoutProvider>
         <NavigationContext.Provider value={{ currentPath, navigate: setCurrentPath }}>
           <UpdateProvider enabled={authStatus === 'authenticated'}>
-            <SidebarProvider>
-              <AppSidebar sidebarData={sidebarData as SidebarData} />
-              <div className="flex min-h-0 flex-1 flex-col w-full overflow-hidden">
-                <Header fixed>
-                  <HeaderContent onLogout={handleLogout} />
-                </Header>
-                <Main>
-                  {renderPage()}
-                </Main>
-              </div>
-            </SidebarProvider>
+            <AIProvider enabled={authStatus === 'authenticated'}>
+              <SidebarProvider>
+                <AppSidebar sidebarData={sidebarData as SidebarData} />
+                <div className="flex min-h-0 flex-1 flex-col w-full overflow-hidden">
+                  <Header fixed>
+                    <HeaderContent onLogout={handleLogout} />
+                  </Header>
+                  <Main>
+                    {renderPage()}
+                  </Main>
+                </div>
+                <AIDrawerHost />
+              </SidebarProvider>
+            </AIProvider>
           </UpdateProvider>
         </NavigationContext.Provider>
       </LayoutProvider>
@@ -126,3 +133,14 @@ function App() {
 }
 
 export default App
+
+function AIDrawerHost() {
+  const ai = useAI()
+  return (
+    <AIDrawer
+      open={ai.drawerOpen}
+      onOpenChange={(open) => (open ? ai.openDrawer() : ai.closeDrawer())}
+      defaultMode={ai.drawerMode}
+    />
+  )
+}
