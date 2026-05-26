@@ -260,7 +260,7 @@ function RiwayatDetailView({ riwayat, placeholders, loading }: { riwayat: Riwaya
     <div className="space-y-4">
       {/* Header info */}
       <div className="rounded-2xl border border-blue-200/70 bg-gradient-to-br from-blue-50/80 via-background to-background p-4 dark:border-blue-900/50 dark:from-blue-950/20">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           <DetailItem label="Nomor Surat" value={riwayat.nomor_surat} bold mono />
           <DetailItem label="Template" value={riwayat.template_nama} bold />
           <DetailItem label="Tanggal Generate" value={formatDate(riwayat.tanggal_generate)} />
@@ -320,7 +320,7 @@ function DetailGroup({ title, children }: { title: string; children: React.React
   return (
     <div>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{title}</p>
-      <div className="grid grid-cols-1 gap-3 rounded-xl border bg-slate-50/70 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:bg-zinc-900/50">
+      <div className="grid grid-cols-1 gap-3 rounded-xl border bg-slate-50/70 p-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 dark:bg-zinc-900/50">
         {children}
       </div>
     </div>

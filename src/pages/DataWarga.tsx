@@ -337,7 +337,7 @@ function DetailGroup({ title, children }: { title: string; children: React.React
   return (
     <div>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{title}</p>
-      <div className="grid grid-cols-1 gap-3 rounded-xl border bg-slate-50/70 p-3 sm:grid-cols-2 lg:grid-cols-3 dark:bg-zinc-900/50">
+      <div className="grid grid-cols-1 gap-3 rounded-xl border bg-slate-50/70 p-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 dark:bg-zinc-900/50">
         {children}
       </div>
     </div>
