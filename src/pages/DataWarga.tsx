@@ -202,7 +202,7 @@ export function DataWarga() {
 
       {/* Detail Modal */}
       <Dialog open={detailModal} onOpenChange={setDetailModal}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="!max-w-[70vw] !w-[70vw] max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <IdCard className="h-5 w-5 text-blue-600" />
