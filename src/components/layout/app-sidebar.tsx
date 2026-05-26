@@ -42,14 +42,16 @@ function SidebarLogo() {
 
   return (
     <div className="relative flex min-h-12 items-center gap-2 px-2 py-2">
-      <span className="rounded-2xl bg-blue-600 px-2 py-1 text-xl font-bold text-white shadow-sm shadow-blue-200 dark:shadow-none" style={{ fontFamily: "'Unica One', cursive" }}>
+      <span className="text-2xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
         {isCollapsed ? (
           <>
-            <span>AI</span><span>S</span>
+            <span className="text-blue-600">AI</span>
+            <span className="text-black dark:text-white">S</span>
           </>
         ) : (
           <>
-            <span>AI</span><span>Sura</span>
+            <span className="text-blue-600">AI</span>
+            <span className="text-black dark:text-white">Sura</span>
           </>
         )}
       </span>
