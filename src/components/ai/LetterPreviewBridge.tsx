@@ -8,6 +8,7 @@ import { Download, Eye } from 'lucide-react'
 
 interface PreviewRequest {
   templateId: string
+  templateName?: string
   values: Record<string, string>
 }
 
@@ -45,7 +46,8 @@ export function useLetterPreviewBridge(): LetterPreviewBridgeApi & {
       const { processDocxTemplate } = await import('@/utils/docxProcessor')
       const buf = await processDocxTemplate(bytes, input.values)
       setBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }))
-      setFilename(`${tpl.nama.replace(/\s+/g, '_')}.docx`)
+      const safeName = (input.templateName || tpl.nama).replace(/\s+/g, '_')
+      setFilename(`${safeName}.docx`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal merender preview')
     } finally {

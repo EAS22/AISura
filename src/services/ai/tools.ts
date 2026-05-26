@@ -1,39 +1,62 @@
-// AI tool registry — the only way the AI can interact with AISura data.
-// Each tool has a JSON schema for arguments, validated before execution.
+// AI tool registry — minimal sandbox for letter creation flow.
+//
+// Design principle (after UX revision):
+// AI hanya perlu menanyakan 2 hal:
+//   1. Template surat mana yang akan dibuat
+//   2. Warga mana untuk tiap slot W1, W2, ... yang dibutuhkan template
+// Semua sisanya (tanggal, nomor surat, kepala desa, data desa) di-resolve
+// otomatis lewat prepare_letter / preview_letter — AI tidak perlu nanya.
 
 import type { AIToolDefinition } from './types'
-import { searchWarga, getWargaById } from '../wargaService'
-import { getAllTemplates, getTemplateById } from '../templateService'
-import { getAllPerangkatDesa } from '../perangkatDesaService'
-import { getDataDesa } from '../desaService'
-import { summarizeWarga } from './privacy'
-import type { Warga } from '@/types'
+import {
+  buildPreparedLetter,
+  listTemplatesForAI,
+  searchWargaForAI,
+} from './letterAutoResolver'
+import { getTemplateById } from '../templateService'
 
 export interface ToolContext {
   /**
    * Called when the model invokes preview_letter. The host UI listens to
    * this and opens the preview modal with the supplied template + values.
-   * Returns a short status string that's fed back to the model.
+   * Returns a short status string fed back to the model.
    */
   onPreviewLetter?: (input: {
     templateId: string
+    templateName: string
     values: Record<string, string>
   }) => Promise<string> | string
+  /**
+   * Notify host UI that a warga slot has been assigned (for breadcrumb display).
+   */
+  onSlotAssigned?: (input: { slot: number; wargaId: string; nama: string }) => void
 }
 
 export interface ToolExecutionResult {
   ok: boolean
   /** Stringified payload sent back to the model. */
   content: string
-  /** Optional raw object retained for the host UI (e.g. selected warga ids). */
+  /** Optional raw object retained for the host UI. */
   raw?: unknown
 }
 
-type ToolHandler = (args: unknown, ctx: ToolContext) => Promise<ToolExecutionResult>
+type ToolHandler = (args: unknown, ctx: ToolContext, session: SessionState) => Promise<ToolExecutionResult>
 
 interface RegisteredTool {
   definition: AIToolDefinition
   handler: ToolHandler
+}
+
+/** Per-conversation state — NOT exposed to the AI. */
+export interface SessionState {
+  templateId?: string
+  /** key W1, W2, ... → wargaId */
+  wargaSlots: Record<string, string>
+  customValues: Record<string, string>
+}
+
+export function createSessionState(): SessionState {
+  return { wargaSlots: {}, customValues: {} }
 }
 
 function ok(payload: unknown, raw?: unknown): ToolExecutionResult {
@@ -59,53 +82,44 @@ const TOOLS: RegisteredTool[] = [
       type: 'function',
       function: {
         name: 'list_templates',
-        description:
-          'Daftar semua template surat yang tersedia di AISura. Pakai ini untuk membantu user memilih template.',
+        description: 'Daftar semua template surat yang tersedia. Pakai untuk membantu user memilih template.',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
       },
     },
     handler: async () => {
-      const templates = await getAllTemplates()
-      const summary = templates.map((t) => ({
-        id: t.id,
-        nama: t.nama,
-        deskripsi: t.deskripsi || '',
-        prefix_surat: t.prefix_surat || '',
-        warga_count: t.warga_count,
-      }))
-      return ok({ templates: summary })
+      const templates = await listTemplatesForAI()
+      return ok({ templates })
     },
   },
   {
     definition: {
       type: 'function',
       function: {
-        name: 'get_template',
+        name: 'select_template',
         description:
-          'Ambil detail template termasuk daftar placeholder yang harus diisi. Pakai sebelum mulai pengisian.',
+          'Set template aktif untuk sesi ini. Setelah dipanggil, gunakan prepare_letter untuk lihat berapa slot warga yang perlu diisi. Tidak perlu konfirmasi tanggal/nomor surat — semua otomatis.',
         parameters: {
           type: 'object',
-          properties: { id: { type: 'string', description: 'Template id' } },
+          properties: { id: { type: 'string', description: 'Template id dari list_templates' } },
           required: ['id'],
           additionalProperties: false,
         },
       },
     },
-    handler: async (args) => {
+    handler: async (args, _ctx, session) => {
       const a = asObject(args)
       const id = typeof a.id === 'string' ? a.id : ''
       if (!id) return fail('id wajib diisi')
       const t = await getTemplateById(id)
       if (!t) return fail('Template tidak ditemukan')
-      let placeholders: unknown = []
-      try { placeholders = JSON.parse(t.placeholders || '[]') } catch { /* ignore */ }
+      session.templateId = id
+      session.wargaSlots = {} // reset slot saat ganti template
+      session.customValues = {}
       return ok({
-        id: t.id,
+        templateId: id,
         nama: t.nama,
-        deskripsi: t.deskripsi,
-        prefix_surat: t.prefix_surat,
         warga_count: t.warga_count,
-        placeholders,
+        message: `Template "${t.nama}" dipilih. Lanjut panggil prepare_letter untuk melihat slot warga yang perlu diisi.`,
       })
     },
   },
@@ -115,11 +129,11 @@ const TOOLS: RegisteredTool[] = [
       function: {
         name: 'search_warga',
         description:
-          'Cari warga berdasarkan nama atau NIK (parsial). NIK lengkap TIDAK pernah dikembalikan — hanya bentuk masked. Untuk mengambil NIK lengkap, user harus konfirmasi pilihan via UI.',
+          'Cari warga berdasarkan nama atau bagian NIK. NIK lengkap di-mask agar tidak terlihat AI sampai user konfirmasi pilihan via assign_warga.',
         parameters: {
           type: 'object',
           properties: {
-            query: { type: 'string', description: 'Nama atau bagian NIK', minLength: 2 },
+            query: { type: 'string', minLength: 2 },
             limit: { type: 'number', description: 'Maks hasil (default 5)' },
           },
           required: ['query'],
@@ -132,102 +146,56 @@ const TOOLS: RegisteredTool[] = [
       const query = typeof a.query === 'string' ? a.query.trim() : ''
       if (query.length < 2) return fail('Query minimal 2 karakter')
       const limit = typeof a.limit === 'number' && a.limit > 0 && a.limit <= 10 ? a.limit : 5
-      const results = (await searchWarga(query, limit)).map(summarizeWarga)
-      return ok(
-        {
-          note:
-            'Data sudah di-mask untuk privasi. AI tidak boleh menebak NIK lengkap. Minta user konfirmasi pilih dari hasil ini.',
-          results,
-        },
+      const results = await searchWargaForAI(query, limit)
+      return ok({
+        note: 'NIK sudah di-mask. Untuk assign warga ke slot, panggil assign_warga dengan id-nya.',
         results,
-      )
+      }, results)
     },
   },
   {
     definition: {
       type: 'function',
       function: {
-        name: 'get_warga',
+        name: 'assign_warga',
         description:
-          'Ambil detail lengkap warga berdasarkan id (yang didapat dari search_warga). Hanya panggil setelah user konfirmasi pilih warga ini.',
+          'Assign warga (id dari search_warga) ke slot Wn (W1, W2, ...). Slot pertama W1 selalu untuk pemohon utama. Setelah semua slot terisi, panggil preview_letter.',
         parameters: {
           type: 'object',
-          properties: { id: { type: 'string' } },
-          required: ['id'],
+          properties: {
+            slot: { type: 'number', description: 'Nomor slot warga (1, 2, ...)' },
+            wargaId: { type: 'string', description: 'id warga dari hasil search_warga' },
+          },
+          required: ['slot', 'wargaId'],
           additionalProperties: false,
         },
       },
     },
-    handler: async (args) => {
+    handler: async (args, ctx, session) => {
       const a = asObject(args)
-      const id = typeof a.id === 'string' ? a.id : ''
-      if (!id) return fail('id wajib diisi')
-      const w = await getWargaById(id)
-      if (!w) return fail('Warga tidak ditemukan')
-      // Return only fields needed for letter generation (still includes full NIK,
-      // since the user has confirmed selecting this warga and AI will need it
-      // to fill placeholders).
-      const result: Pick<
-        Warga,
-        | 'id'
-        | 'no_kk'
-        | 'nik'
-        | 'nama'
-        | 'jenis_kelamin'
-        | 'tempat_lahir'
-        | 'tanggal_lahir'
-        | 'agama'
-        | 'status'
-        | 'hub_keluarga'
-        | 'pendidikan'
-        | 'pekerjaan'
-        | 'nama_ibu'
-        | 'nama_ayah'
-        | 'alamat'
-        | 'rt'
-        | 'rw'
-      > = {
-        id: w.id,
-        no_kk: w.no_kk,
-        nik: w.nik,
-        nama: w.nama,
-        jenis_kelamin: w.jenis_kelamin,
-        tempat_lahir: w.tempat_lahir,
-        tanggal_lahir: w.tanggal_lahir,
-        agama: w.agama,
-        status: w.status,
-        hub_keluarga: w.hub_keluarga,
-        pendidikan: w.pendidikan,
-        pekerjaan: w.pekerjaan,
-        nama_ibu: w.nama_ibu,
-        nama_ayah: w.nama_ayah,
-        alamat: w.alamat,
-        rt: w.rt,
-        rw: w.rw,
+      const slot = typeof a.slot === 'number' ? Math.floor(a.slot) : NaN
+      const wargaId = typeof a.wargaId === 'string' ? a.wargaId : ''
+      if (!Number.isFinite(slot) || slot < 1) return fail('slot harus angka >= 1')
+      if (!wargaId) return fail('wargaId wajib diisi')
+      if (!session.templateId) return fail('Belum ada template aktif. Panggil select_template dulu.')
+
+      session.wargaSlots[`W${slot}`] = wargaId
+
+      // Verify by re-running the resolver so we know if assignment is valid
+      const prepared = await buildPreparedLetter({
+        templateId: session.templateId,
+        wargaSlots: session.wargaSlots,
+        customValues: session.customValues,
+      })
+      const slotInfo = prepared.wargaSlots.find((s) => s.slot === slot)
+      if (slotInfo?.warga_id && slotInfo.nama) {
+        ctx.onSlotAssigned?.({ slot, wargaId: slotInfo.warga_id, nama: slotInfo.nama })
       }
-      return ok(result, w)
-    },
-  },
-  {
-    definition: {
-      type: 'function',
-      function: {
-        name: 'list_perangkat_desa',
-        description: 'Daftar perangkat desa (Kepala Desa, Sekretaris, dst.).',
-        parameters: { type: 'object', properties: {}, additionalProperties: false },
-      },
-    },
-    handler: async () => {
-      const list = await getAllPerangkatDesa()
       return ok({
-        perangkat: list.map((pd) => ({
-          urutan: pd.urutan,
-          jabatan: pd.jabatan,
-          nama: pd.nama,
-          gelar_depan: pd.gelar_depan,
-          gelar_belakang: pd.gelar_belakang,
-          nipd: pd.nipd,
-        })),
+        slot,
+        nama: slotInfo?.nama,
+        remainingSlots: prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot),
+        missingCustom: prepared.missing.custom,
       })
     },
   },
@@ -235,23 +203,56 @@ const TOOLS: RegisteredTool[] = [
     definition: {
       type: 'function',
       function: {
-        name: 'get_data_desa',
-        description: 'Ambil identitas desa (nama desa, kecamatan, kabupaten, dll).',
+        name: 'set_custom_value',
+        description:
+          'Isi placeholder kategori "custom" (token yang bukan warga/perangkat/desa/nomor). Hanya panggil kalau prepare_letter melaporkan ada custom yang kosong.',
+        parameters: {
+          type: 'object',
+          properties: {
+            token: { type: 'string', description: 'Token tanpa kurung kurawal, contoh: PERIHAL' },
+            value: { type: 'string' },
+          },
+          required: ['token', 'value'],
+          additionalProperties: false,
+        },
+      },
+    },
+    handler: async (args, _ctx, session) => {
+      const a = asObject(args)
+      const token = typeof a.token === 'string' ? a.token.replace(/^\{|\}$/g, '').trim() : ''
+      const value = typeof a.value === 'string' ? a.value : ''
+      if (!token) return fail('token wajib diisi')
+      session.customValues[token] = value
+      return ok({ token, value })
+    },
+  },
+  {
+    definition: {
+      type: 'function',
+      function: {
+        name: 'prepare_letter',
+        description:
+          'Hitung status pengisian template aktif: berapa slot warga sudah/belum, apakah ada custom kosong, dan apa preview default-nya. Tanggal otomatis hari ini, nomor otomatis dari config, kepala desa otomatis sebagai penandatangan. Panggil setelah select_template untuk tahu apa yang perlu ditanya ke user.',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
       },
     },
-    handler: async () => {
-      const d = await getDataDesa()
-      if (!d) return ok({ note: 'Belum ada data desa, minta user mengisi di Pengaturan > Data Desa.' })
+    handler: async (_args, _ctx, session) => {
+      if (!session.templateId) return fail('Belum ada template aktif. Panggil select_template dulu.')
+      const prepared = await buildPreparedLetter({
+        templateId: session.templateId,
+        wargaSlots: session.wargaSlots,
+        customValues: session.customValues,
+      })
       return ok({
-        desa: d.desa,
-        kecamatan: d.kecamatan,
-        kabupaten: d.kabupaten,
-        provinsi: d.provinsi,
-        kode_pos: d.kode_pos,
-        telepon: d.telepon,
-        email: d.email,
-        alamat_kantor: d.alamat_kantor,
+        template: { id: prepared.template.id, nama: prepared.template.nama, warga_count: prepared.template.warga_count },
+        wargaSlots: prepared.wargaSlots,
+        missingWargaSlots: prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot),
+        missingCustom: prepared.missing.custom,
+        defaultDate: prepared.defaultDate,
+        nomorPreview: prepared.nomorPreview['NOMOR_SURAT'] || '',
+        readyToPreview:
+          prepared.missing.warga.every((m) => prepared.wargaSlots.find((s) => s.slot === m.slot)?.warga_id) &&
+          prepared.missing.custom.length === 0,
       })
     },
   },
@@ -261,40 +262,35 @@ const TOOLS: RegisteredTool[] = [
       function: {
         name: 'preview_letter',
         description:
-          'Buka modal preview surat untuk template tertentu dengan nilai placeholder yang sudah lengkap. Hanya panggil ketika SEMUA placeholder yang dibutuhkan sudah terisi.',
-        parameters: {
-          type: 'object',
-          properties: {
-            templateId: { type: 'string' },
-            values: {
-              type: 'object',
-              description: 'Mapping placeholder token (tanpa kurung kurawal) ke nilai string.',
-              additionalProperties: { type: 'string' },
-            },
-          },
-          required: ['templateId', 'values'],
-          additionalProperties: false,
-        },
+          'Buka modal preview surat dengan semua data otomatis (tanggal hari ini, nomor surat dari config, kepala desa sebagai penandatangan) + warga & custom yang sudah di-set. Hanya panggil ketika prepare_letter mengembalikan readyToPreview=true.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false },
       },
     },
-    handler: async (args, ctx) => {
-      const a = asObject(args)
-      const templateId = typeof a.templateId === 'string' ? a.templateId : ''
-      const values = (a.values && typeof a.values === 'object' && !Array.isArray(a.values))
-        ? (a.values as Record<string, string>)
-        : null
-      if (!templateId || !values) return fail('templateId dan values wajib diisi')
+    handler: async (_args, ctx, session) => {
+      if (!session.templateId) return fail('Belum ada template aktif. Panggil select_template dulu.')
+      const prepared = await buildPreparedLetter({
+        templateId: session.templateId,
+        wargaSlots: session.wargaSlots,
+        customValues: session.customValues,
+      })
 
-      // Coerce all values to strings
-      const normalized: Record<string, string> = {}
-      for (const [k, v] of Object.entries(values)) {
-        normalized[k] = v == null ? '' : String(v)
+      // Block preview if anything required is still empty
+      const missingSlots = prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot)
+      if (missingSlots.length > 0) {
+        return fail(`Slot warga belum lengkap: ${missingSlots.map((s) => `W${s}`).join(', ')}`)
+      }
+      if (prepared.missing.custom.length > 0) {
+        return fail(`Custom token kosong: ${prepared.missing.custom.join(', ')}`)
       }
 
       const status = ctx.onPreviewLetter
-        ? await ctx.onPreviewLetter({ templateId, values: normalized })
-        : 'Preview tidak tersedia di sesi ini.'
-      return ok({ status })
+        ? await ctx.onPreviewLetter({
+            templateId: prepared.template.id,
+            templateName: prepared.template.nama,
+            values: prepared.values,
+          })
+        : 'Preview tidak tersedia.'
+      return ok({ status, nomorSurat: prepared.nomorPreview['NOMOR_SURAT'] || '', tanggal: prepared.defaultDate })
     },
   },
 ]
@@ -305,10 +301,13 @@ export async function executeTool(
   name: string,
   argsJson: string,
   ctx: ToolContext,
+  session: SessionState,
 ): Promise<ToolExecutionResult> {
   const tool = TOOLS.find((t) => t.definition.function.name === name)
   if (!tool) {
-    return fail(`Tool '${name}' tidak dikenal. Pakai salah satu: ${TOOLS.map((t) => t.definition.function.name).join(', ')}.`)
+    return fail(
+      `Tool '${name}' tidak dikenal. Pakai salah satu: ${TOOLS.map((t) => t.definition.function.name).join(', ')}.`,
+    )
   }
   let parsedArgs: unknown
   try {
@@ -317,7 +316,7 @@ export async function executeTool(
     return fail('Argumen tool bukan JSON yang valid.')
   }
   try {
-    return await tool.handler(parsedArgs, ctx)
+    return await tool.handler(parsedArgs, ctx, session)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Tool execution error'
     return fail(msg)

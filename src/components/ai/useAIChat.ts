@@ -3,12 +3,14 @@ import { v4 as uuid } from 'uuid'
 import {
   CHAT_LETTER_SYSTEM_PROMPT,
   TOOL_DEFINITIONS,
+  createSessionState,
   executeTool,
   isLikelyOffTopic,
   OFF_TOPIC_REPLY,
   streamChatCompletion,
   type AIChatMessage,
   type AIResolvedCredentials,
+  type SessionState,
   type ToolContext,
 } from '@/services/ai'
 
@@ -29,17 +31,19 @@ interface UseAIChatResult {
   abort: () => void
 }
 
-const MAX_TOOL_ROUNDS = 6
+const MAX_TOOL_ROUNDS = 8
 
 export function useAIChat(creds: AIResolvedCredentials | null, options: UseAIChatOptions): UseAIChatResult {
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const sessionRef = useRef<SessionState>(createSessionState())
 
   const reset = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
+    sessionRef.current = createSessionState()
     setMessages([])
     setBusy(false)
     setError(null)
@@ -83,8 +87,6 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
       abortRef.current = controller
 
       try {
-        // Build the conversation including the new user message.
-        // Include system prompt as the first message every turn.
         const baseHistory: AIChatMessage[] = [
           { role: 'system', content: CHAT_LETTER_SYSTEM_PROMPT },
           ...messages
@@ -110,7 +112,6 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
             controller.signal,
           )
 
-          // Persist assistant message
           const assistantMsg: AIChatMessage = {
             role: 'assistant',
             content: resp.message.content || '',
@@ -129,9 +130,13 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
             break
           }
 
-          // Execute each tool, append tool messages to history + UI.
           for (const tc of resp.message.tool_calls) {
-            const result = await executeTool(tc.function.name, tc.function.arguments, options.toolContext)
+            const result = await executeTool(
+              tc.function.name,
+              tc.function.arguments,
+              options.toolContext,
+              sessionRef.current,
+            )
             const toolMsg: AIChatMessage = {
               role: 'tool',
               content: result.content,
@@ -142,7 +147,6 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
             setMessages((prev) => [...prev, { ...toolMsg, uiId: uuid() }])
           }
 
-          // Add a fresh placeholder for the next assistant turn
           const nextId = uuid()
           assistantUiId = nextId
           setMessages((prev) => [...prev, { uiId: nextId, role: 'assistant', content: '' }])
@@ -150,7 +154,6 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Gagal menghubungi AI'
         setError(msg)
-        // Replace the last empty placeholder with the error so user sees something.
         setMessages((prev) => {
           const next = [...prev]
           for (let i = next.length - 1; i >= 0; i--) {

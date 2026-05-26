@@ -102,7 +102,7 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
 
   const toolContext = useMemo(
     () => ({
-      onPreviewLetter: async (input: { templateId: string; values: Record<string, string> }) => {
+      onPreviewLetter: async (input: { templateId: string; templateName: string; values: Record<string, string> }) => {
         await previewBridge.requestPreview(input)
         return 'Preview surat telah dibuka untuk dilihat oleh user.'
       },
@@ -211,9 +211,9 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
 
 function ChatEmptyState({ onPick }: { onPick: (prompt: string) => void }) {
   const samples = [
-    'Buatkan surat keterangan domisili untuk warga atas nama Sena.',
-    'Tampilkan daftar template surat yang ada.',
-    'Saya butuh surat keterangan tidak mampu, mulai dari awal.',
+    'Buatkan surat keterangan domisili untuk Sena.',
+    'Tampilkan template yang ada, saya mau buat surat.',
+    'Saya butuh surat keterangan tidak mampu untuk warga.',
   ]
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
@@ -222,7 +222,7 @@ function ChatEmptyState({ onPick }: { onPick: (prompt: string) => void }) {
       </div>
       <p className="text-sm font-medium">Mau bikin surat apa hari ini?</p>
       <p className="max-w-xs text-xs text-muted-foreground">
-        AI akan menanyakan template, mencarikan warga di database, lalu membuka preview saat data lengkap.
+        AI cuma akan menanyakan template + warga. Tanggal surat, nomor surat, dan kepala desa otomatis terisi.
       </p>
       <div className="grid w-full gap-2">
         {samples.map((s) => (
