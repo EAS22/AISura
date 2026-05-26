@@ -26,7 +26,6 @@ export interface AIProviderPreset {
 export interface AIConfig {
   id: string
   enabled: boolean
-  use_default: boolean
   provider: AIProviderId
   base_url: string
   api_key: string
@@ -42,8 +41,6 @@ export interface AIResolvedCredentials {
   apiKey: string
   model: string
   temperature: number
-  /** True if using the embedded default key (so we know to show "default" hint). */
-  isDefault: boolean
 }
 
 // Chat message structure compatible with OpenAI Chat Completions API.

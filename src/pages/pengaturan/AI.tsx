@@ -7,17 +7,24 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PasswordInput } from '@/components/password-input'
-import { Sparkles, ShieldCheck, ShieldAlert, RefreshCw, Plug, KeyRound, Globe2, Cpu, ListRestart, Search } from 'lucide-react'
+import {
+  Sparkles,
+  ShieldCheck,
+  ShieldAlert,
+  RefreshCw,
+  Plug,
+  KeyRound,
+  Globe2,
+  Cpu,
+  ListRestart,
+  Search,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
 import {
   AI_PROVIDER_PRESETS,
   getProviderPreset,
-  hasDefaultKey,
-  DEFAULT_AI_BASE_URL,
-  DEFAULT_AI_MODEL,
   listModels,
-  resolveCredentials,
   saveAIConfig,
   testAIConnection,
 } from '@/services/ai'
@@ -29,7 +36,6 @@ export function AIPage() {
   const config = ai.config
 
   const [enabled, setEnabled] = useState(false)
-  const [useDefault, setUseDefault] = useState(true)
   const [provider, setProvider] = useState<AIProviderId>('groq')
   const [baseUrl, setBaseUrl] = useState('')
   const [apiKey, setApiKey] = useState('')
@@ -48,7 +54,6 @@ export function AIPage() {
   useEffect(() => {
     if (!config) return
     setEnabled(config.enabled)
-    setUseDefault(config.use_default)
     setProvider(config.provider)
     setBaseUrl(config.base_url)
     setApiKey(config.api_key)
@@ -58,7 +63,6 @@ export function AIPage() {
   }, [config])
 
   const preset = useMemo(() => getProviderPreset(provider), [provider])
-  const defaultAvailable = hasDefaultKey()
 
   const handleSelectProvider = (id: string) => {
     const next = id as AIProviderId
@@ -66,7 +70,6 @@ export function AIPage() {
     const p = getProviderPreset(next)
     if (!baseUrl || baseUrl !== p.baseUrl) setBaseUrl(p.baseUrl)
     if (!model) setModel(p.defaultModel)
-    // Reset fetched model list since provider berubah
     setFetchedModels([])
     setFetchModelsError(null)
   }
@@ -105,53 +108,23 @@ export function AIPage() {
     setTesting(true)
     setTestResult(null)
     try {
-      const probe = useDefault
-        ? defaultAvailable
-          ? {
-              baseUrl: DEFAULT_AI_BASE_URL,
-              model: DEFAULT_AI_MODEL,
-              apiKey: '__use_default__', // placeholder; actual key resolved internally below
-              temperature,
-              isDefault: true as const,
-            }
-          : null
-        : {
-            baseUrl: (baseUrl || preset.baseUrl).trim(),
-            model: (model || preset.defaultModel).trim(),
-            apiKey: apiKey.trim(),
-            temperature,
-            isDefault: false as const,
-          }
-      if (!probe) {
-        setTestResult({ ok: false, msg: 'Default key tidak tersedia di build ini.' })
+      const trimmedBase = (baseUrl || preset.baseUrl).trim()
+      const trimmedModel = (model || preset.defaultModel).trim()
+      const trimmedKey = apiKey.trim()
+      if (!trimmedBase || !trimmedModel) {
+        setTestResult({ ok: false, msg: 'Base URL dan model wajib diisi.' })
         return
       }
-      // For default mode we resolve via the existing config so the real default key is used.
-      const creds = useDefault
-        ? resolveCredentials({
-            ...(config ?? {
-              id: '',
-              enabled: true,
-              use_default: true,
-              provider: 'groq',
-              base_url: '',
-              api_key: '',
-              model: '',
-              temperature,
-              privacy_acknowledged: true,
-              created_at: '',
-              updated_at: '',
-            }),
-            enabled: true,
-            use_default: true,
-            temperature,
-          })
-        : probe
-      if (!creds) {
-        setTestResult({ ok: false, msg: 'Konfigurasi belum lengkap untuk testing.' })
+      if (preset.needsKey && !trimmedKey) {
+        setTestResult({ ok: false, msg: `API key wajib untuk provider ${preset.label}.` })
         return
       }
-      const result = await testAIConnection(creds)
+      const result = await testAIConnection({
+        baseUrl: trimmedBase,
+        apiKey: trimmedKey,
+        model: trimmedModel,
+        temperature,
+      })
       if (result.ok) setTestResult({ ok: true, msg: `Tersambung. Sample: "${result.sample}"` })
       else setTestResult({ ok: false, msg: result.error })
     } catch (err) {
@@ -166,7 +139,6 @@ export function AIPage() {
     try {
       await saveAIConfig({
         enabled,
-        use_default: useDefault,
         provider,
         base_url: baseUrl,
         api_key: apiKey,
@@ -211,8 +183,11 @@ export function AIPage() {
               template, dan <span className="font-medium text-foreground">membuat surat via chat</span> dengan panduan
               langkah-demi-langkah. AI tidak bisa mengubah data warga atau template, hanya membaca lewat tool yang sudah dibatasi.
             </p>
+            <p className="text-xs leading-5 text-muted-foreground">
+              Untuk memakai fitur ini, isi kredensial provider AI Anda sendiri (mis. Groq, OpenAI, OpenRouter, Ollama lokal,
+              dll). AISura tidak menyediakan API key bawaan.
+            </p>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="rounded-full">{defaultAvailable ? 'Default key aktif' : 'Default key tidak ter-embed'}</Badge>
               <Badge variant="outline" className="rounded-full">{enabled ? 'Aktif' : 'Nonaktif'}</Badge>
             </div>
           </div>
@@ -255,7 +230,6 @@ export function AIPage() {
                     onChange={(e) => {
                       const v = e.target.checked
                       setAcknowledged(v)
-                      // Saat user uncheck persetujuan, paksa nonaktifkan toggle juga
                       if (!v && enabled) setEnabled(false)
                     }}
                   />
@@ -267,154 +241,141 @@ export function AIPage() {
         </CardContent>
       </Card>
 
-      {/* Source toggle */}
+      {/* Credentials */}
       <Card className={crmShell.card}>
         <CardHeader>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600">
-                <Cpu className="h-5 w-5" />
-              </div>
-              <div>
-                <CardTitle className="text-sm">Sumber kredensial</CardTitle>
-                <CardDescription>Pilih default bawaan AISura atau API key Anda sendiri.</CardDescription>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600">
+              <Cpu className="h-5 w-5" />
             </div>
-            <div className="flex items-center gap-2">
-              <Label htmlFor="ai-default" className="text-xs text-muted-foreground">Pakai default</Label>
-              <Switch id="ai-default" checked={useDefault} onCheckedChange={setUseDefault} />
+            <div>
+              <CardTitle className="text-sm">Kredensial Provider</CardTitle>
+              <CardDescription>Pilih provider, isi base URL, model, dan API key Anda.</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {useDefault ? (
-            <div className="rounded-xl border bg-muted/30 p-4 text-sm">
-              <p className="font-medium">Provider: Groq (free tier)</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Model <span className="font-data-number">{DEFAULT_AI_MODEL}</span>. Endpoint{' '}
-                <span className="font-data-number">{DEFAULT_AI_BASE_URL}</span>.
-              </p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Jika rate limit, matikan toggle ini lalu pakai API key sendiri (gratis tier juga tersedia di banyak provider).
-              </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="md:col-span-2 space-y-1">
+              <Label className="text-xs">Provider</Label>
+              <Select value={provider} onValueChange={handleSelectProvider}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {AI_PROVIDER_PRESETS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <span className="font-medium">{p.label}</span>
+                      <span className="ml-2 text-xs text-muted-foreground">{p.description}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="md:col-span-2 space-y-1">
-                <Label className="text-xs">Provider</Label>
-                <Select value={provider} onValueChange={handleSelectProvider}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {AI_PROVIDER_PRESETS.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <span className="font-medium">{p.label}</span>
-                        <span className="ml-2 text-xs text-muted-foreground">{p.description}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="md:col-span-2 space-y-1">
+              <Label className="text-xs flex items-center gap-1"><Globe2 className="h-3 w-3" />Base URL</Label>
+              <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={preset.baseUrl} />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs">Model</Label>
+                <button
+                  type="button"
+                  onClick={handleFetchModels}
+                  disabled={fetchingModels || !baseUrl.trim()}
+                  className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline disabled:opacity-50"
+                >
+                  <ListRestart className={cn('h-3 w-3', fetchingModels && 'animate-spin')} />
+                  {fetchingModels ? 'Fetching…' : 'Fetch dari provider'}
+                </button>
               </div>
-              <div className="md:col-span-2 space-y-1">
-                <Label className="text-xs flex items-center gap-1"><Globe2 className="h-3 w-3" />Base URL</Label>
-                <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={preset.baseUrl} />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <Label className="text-xs">Model</Label>
+              <Input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder={preset.defaultModel}
+                list={preset.suggestedModels.length > 0 ? 'ai-suggested-models' : undefined}
+              />
+              {preset.suggestedModels.length > 0 && fetchedModels.length === 0 && (
+                <datalist id="ai-suggested-models">
+                  {preset.suggestedModels.map((m) => <option key={m} value={m} />)}
+                </datalist>
+              )}
+              {fetchModelsError && (
+                <p className="text-[10px] text-destructive">{fetchModelsError}</p>
+              )}
+              {fetchedModels.length > 0 && (
+                <div className="rounded-md border bg-background">
                   <button
                     type="button"
-                    onClick={handleFetchModels}
-                    disabled={fetchingModels || !baseUrl.trim()}
-                    className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline disabled:opacity-50"
+                    className="flex w-full items-center justify-between px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-muted/30"
+                    onClick={() => setModelPickerOpen((v) => !v)}
                   >
-                    <ListRestart className={cn('h-3 w-3', fetchingModels && 'animate-spin')} />
-                    {fetchingModels ? 'Fetching…' : 'Fetch dari provider'}
+                    <span>{fetchedModels.length} model tersedia dari provider</span>
+                    <span>{modelPickerOpen ? '▲' : '▼'}</span>
                   </button>
-                </div>
-                <Input
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                  placeholder={preset.defaultModel}
-                  list={preset.suggestedModels.length > 0 ? 'ai-suggested-models' : undefined}
-                />
-                {preset.suggestedModels.length > 0 && fetchedModels.length === 0 && (
-                  <datalist id="ai-suggested-models">
-                    {preset.suggestedModels.map((m) => <option key={m} value={m} />)}
-                  </datalist>
-                )}
-                {fetchModelsError && (
-                  <p className="text-[10px] text-destructive">{fetchModelsError}</p>
-                )}
-                {fetchedModels.length > 0 && (
-                  <div className="rounded-md border bg-background">
-                    <button
-                      type="button"
-                      className="flex w-full items-center justify-between px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-muted/30"
-                      onClick={() => setModelPickerOpen((v) => !v)}
-                    >
-                      <span>{fetchedModels.length} model tersedia dari provider</span>
-                      <span>{modelPickerOpen ? '▲' : '▼'}</span>
-                    </button>
-                    {modelPickerOpen && (
-                      <div className="border-t">
-                        <div className="relative px-2 py-1.5">
-                          <Search className="absolute left-3.5 top-3 h-3 w-3 text-muted-foreground" />
-                          <Input
-                            value={modelSearch}
-                            onChange={(e) => setModelSearch(e.target.value)}
-                            placeholder="Cari model..."
-                            className="h-7 pl-6 text-[11px]"
-                          />
-                        </div>
-                        <div className="max-h-40 overflow-y-auto border-t">
-                          {filteredFetchedModels.length === 0 ? (
-                            <p className="px-2 py-2 text-[10px] text-muted-foreground">Tidak ada model cocok.</p>
-                          ) : (
-                            filteredFetchedModels.map((m) => (
-                              <button
-                                key={m}
-                                type="button"
-                                onClick={() => {
-                                  setModel(m)
-                                  setModelPickerOpen(false)
-                                  setModelSearch('')
-                                }}
-                                className={cn(
-                                  'block w-full truncate px-2 py-1.5 text-left text-[11px] hover:bg-blue-50 dark:hover:bg-blue-950/30',
-                                  m === model && 'bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
-                                )}
-                              >
-                                {m}
-                              </button>
-                            ))
-                          )}
-                        </div>
+                  {modelPickerOpen && (
+                    <div className="border-t">
+                      <div className="relative px-2 py-1.5">
+                        <Search className="absolute left-3.5 top-3 h-3 w-3 text-muted-foreground" />
+                        <Input
+                          value={modelSearch}
+                          onChange={(e) => setModelSearch(e.target.value)}
+                          placeholder="Cari model..."
+                          className="h-7 pl-6 text-[11px]"
+                        />
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs flex items-center gap-1"><KeyRound className="h-3 w-3" />API Key {!preset.needsKey && '(opsional)'}</Label>
-                <PasswordInput value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder={preset.needsKey ? 'sk-...' : 'kosongkan kalau tidak butuh'} />
-              </div>
-              <div className="md:col-span-2 space-y-1">
-                <Label className="text-xs">Temperature ({temperature.toFixed(2)})</Label>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={temperature}
-                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
-                  className="w-full accent-blue-600"
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Nilai rendah = jawaban lebih konsisten dan teliti. Default 0.3.
-                </p>
-              </div>
+                      <div className="max-h-40 overflow-y-auto border-t">
+                        {filteredFetchedModels.length === 0 ? (
+                          <p className="px-2 py-2 text-[10px] text-muted-foreground">Tidak ada model cocok.</p>
+                        ) : (
+                          filteredFetchedModels.map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => {
+                                setModel(m)
+                                setModelPickerOpen(false)
+                                setModelSearch('')
+                              }}
+                              className={cn(
+                                'block w-full truncate px-2 py-1.5 text-left text-[11px] hover:bg-blue-50 dark:hover:bg-blue-950/30',
+                                m === model && 'bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+                              )}
+                            >
+                              {m}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          )}
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1">
+                <KeyRound className="h-3 w-3" />API Key {!preset.needsKey && '(opsional)'}
+              </Label>
+              <PasswordInput
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={preset.needsKey ? 'sk-...' : 'kosongkan kalau tidak butuh'}
+              />
+            </div>
+            <div className="md:col-span-2 space-y-1">
+              <Label className="text-xs">Temperature ({temperature.toFixed(2)})</Label>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={temperature}
+                onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                className="w-full accent-blue-600"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Nilai rendah = jawaban lebih konsisten dan teliti. Default 0.3.
+              </p>
+            </div>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={handleTest} disabled={testing}>

@@ -164,7 +164,6 @@ export async function initDatabase(): Promise<Database> {
     CREATE TABLE IF NOT EXISTS ai_config (
       id TEXT PRIMARY KEY,
       enabled INTEGER DEFAULT 0,
-      use_default INTEGER DEFAULT 1,
       provider TEXT DEFAULT 'groq',
       base_url TEXT DEFAULT '',
       api_key TEXT DEFAULT '',
@@ -175,6 +174,10 @@ export async function initDatabase(): Promise<Database> {
       updated_at TEXT
     )
   `);
+
+  // Migration: legacy ai_config rows may have a use_default column from
+  // pre-1.0.5 builds. We don't read it any more; leaving it untouched is
+  // harmless (SQLite ignores extra columns on INSERT we omit).
 
   return db;
 }

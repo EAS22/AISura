@@ -40,7 +40,7 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
           </SheetTitle>
           <SheetDescription>
             {ai.credentials
-              ? `Provider aktif. Model: ${ai.credentials.model}${ai.credentials.isDefault ? ' (default)' : ''}.`
+              ? `Provider aktif. Model: ${ai.credentials.model}.`
               : 'AI belum aktif. Buka Pengaturan > AI untuk mengaktifkan.'}
           </SheetDescription>
         </SheetHeader>

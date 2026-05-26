@@ -5,7 +5,6 @@ export * from './privacy'
 export * from './aiClient'
 export * from './tools'
 export * from './prompts'
-export { hasDefaultKey, DEFAULT_AI_BASE_URL, DEFAULT_AI_MODEL } from './defaultCreds'
 
 import type { AIResolvedCredentials } from './types'
 import { chatCompletion } from './aiClient'

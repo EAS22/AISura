@@ -8,3 +8,8 @@ ACCESS_TOKENS.md
 .worktrees/
 
 .superpowers/
+
+# Generic env file ignore (in case future builds use them).
+.env
+.env.local
+.env.*.local
