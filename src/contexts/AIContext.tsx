@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { AIConfig, AIResolvedCredentials } from '@/services/ai'
 import { getAIConfig, resolveCredentials } from '@/services/ai'
+import { useLetterPreviewBridge, type LetterPreviewBridgeApi } from '@/components/ai/LetterPreviewBridge'
 
 interface DrawerOpenOptions {
   mode?: 'chat' | 'template'
@@ -15,6 +16,8 @@ interface AIContextValue {
   openDrawer: (opts?: DrawerOpenOptions) => void
   closeDrawer: () => void
   reload: () => Promise<void>
+  /** Letter preview bridge — lifted to root level to avoid Radix nested-portal cleanup race. */
+  previewBridge: LetterPreviewBridgeApi
 }
 
 const AIContext = createContext<AIContextValue | null>(null)
@@ -24,6 +27,7 @@ export function AIProvider({ children, enabled }: { children: React.ReactNode; e
   const [config, setConfig] = useState<AIConfig | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerMode, setDrawerMode] = useState<'chat' | 'template'>('chat')
+  const previewBridge = useLetterPreviewBridge()
 
   const reload = useCallback(async () => {
     try {
@@ -61,8 +65,9 @@ export function AIProvider({ children, enabled }: { children: React.ReactNode; e
       openDrawer,
       closeDrawer,
       reload,
+      previewBridge,
     }),
-    [ready, config, credentials, drawerOpen, drawerMode, openDrawer, closeDrawer, reload],
+    [ready, config, credentials, drawerOpen, drawerMode, openDrawer, closeDrawer, reload, previewBridge],
   )
 
   return <AIContext.Provider value={value}>{children}</AIContext.Provider>

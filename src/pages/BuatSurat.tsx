@@ -17,6 +17,7 @@ import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
 import { getNomorSuratConfig, incrementCounter, getCurrentCounter } from '@/services/nomorSuratService'
 import { saveRiwayat } from '@/services/riwayatService'
 import { generateNomorSuratParts, generateMultiNomorParts } from '@/utils/nomorSuratGenerator'
+import { formatNamaPerangkat } from '@/lib/utils'
 import type { TemplateSurat, DetectedPlaceholder, Warga, DataDesa, PerangkatDesa } from '@/types'
 
 const TEMPLATE_ACCENTS = [
@@ -73,6 +74,11 @@ export function BuatSurat() {
     const detected: DetectedPlaceholder[] = JSON.parse(t.placeholders || '[]')
     setPlaceholders(detected)
     const values: Record<string, string> = {}
+    // Aliases that mean "the signer of this letter" — should follow signer_urutan, not literal PD1.
+    const SIGNER_ALIAS_TOKENS = new Set([
+      'KEPALA_DESA', 'NIK_KEPALA_DESA', 'NIPD_KEPALA_DESA', 'JABATAN_KEPALA_DESA', 'ALAMAT_KEPALA_DESA',
+    ])
+    const signerUrutan = t.signer_urutan || 1
     for (const p of detected) {
       if (p.kategori === 'desa' && dataDesa) {
         const map: Record<string, string> = { DESA: dataDesa.desa, KECAMATAN: dataDesa.kecamatan, KABUPATEN: dataDesa.kabupaten, PROVINSI: dataDesa.provinsi, KODE_POS: dataDesa.kode_pos, TELEPON_DESA: dataDesa.telepon, EMAIL_DESA: dataDesa.email, ALAMAT_KANTOR_DESA: dataDesa.alamat_kantor, KOP_SURAT: dataDesa.kop_surat || '' }
@@ -80,9 +86,12 @@ export function BuatSurat() {
       } else if (p.kategori === 'perangkat_desa' && p.slot) {
         const m = p.slot.match(/^PD(\d+)$/)
         if (m) {
-          const pd = perangkatDesa.find(x => x.urutan === parseInt(m[1]))
+          // Redirect signer aliases (KEPALA_DESA*) to the configured signer.
+          const isAlias = SIGNER_ALIAS_TOKENS.has(p.token.replace(/_(U|L|P)$/, ''))
+          const targetUrutan = isAlias ? signerUrutan : parseInt(m[1])
+          const pd = perangkatDesa.find(x => x.urutan === targetUrutan)
           if (pd) {
-            const pdMap: Record<string, string> = { NAMA: pd.nama, NIK: pd.nik, NIPD: pd.nipd, JABATAN: pd.jabatan, ALAMAT: pd.alamat, NAMA_LENGKAP: [pd.gelar_depan, pd.nama, pd.gelar_belakang].filter(Boolean).join(' ') }
+            const pdMap: Record<string, string> = { NAMA: pd.nama, NIK: pd.nik, NIPD: pd.nipd, JABATAN: pd.jabatan, ALAMAT: pd.alamat, NAMA_LENGKAP: formatNamaPerangkat(pd.gelar_depan, pd.nama, pd.gelar_belakang) }
             values[p.token] = pdMap[p.field] || ''
           }
         }

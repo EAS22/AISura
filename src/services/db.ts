@@ -76,6 +76,7 @@ export async function initDatabase(): Promise<Database> {
       placeholders TEXT,
       warga_count INTEGER DEFAULT 0,
       prefix_surat TEXT DEFAULT '',
+      signer_urutan INTEGER DEFAULT 1,
       created_at TEXT,
       updated_at TEXT
     )
@@ -84,6 +85,11 @@ export async function initDatabase(): Promise<Database> {
   // Migration: add prefix_surat column if missing (for existing databases)
   try {
     await db.execute(`ALTER TABLE templates ADD COLUMN prefix_surat TEXT DEFAULT ''`);
+  } catch { /* column already exists, ignore */ }
+
+  // Migration: add signer_urutan column if missing
+  try {
+    await db.execute(`ALTER TABLE templates ADD COLUMN signer_urutan INTEGER DEFAULT 1`);
   } catch { /* column already exists, ignore */ }
 
   await db.execute(`

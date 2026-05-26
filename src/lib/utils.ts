@@ -73,3 +73,35 @@ export function getDisplayNameInitials(displayName: string): string {
   const last = parts[parts.length - 1]?.[0] ?? ''
   return (first + last).toUpperCase()
 }
+
+/**
+ * Format nama lengkap perangkat desa dengan tanda baca akademik standar.
+ * - Gelar depan diakhiri dengan "." kalau belum ada (mis. "H" → "H.").
+ * - Nama lengkap dipisah koma sebelum gelar belakang (mis. "Sena, S.Sos.").
+ * - Gelar belakang diakhiri dengan "." kalau belum ada (mis. "S.Sos" → "S.Sos.").
+ *
+ * Contoh:
+ *   formatNamaPerangkat("H", "Sena", "S.Sos") → "H. Sena, S.Sos."
+ *   formatNamaPerangkat("", "Sena", "")       → "Sena"
+ *   formatNamaPerangkat("Drs.", "Sena", "")   → "Drs. Sena"
+ *   formatNamaPerangkat("", "Sena", "M.Pd.")  → "Sena, M.Pd."
+ */
+export function formatNamaPerangkat(
+  gelarDepan?: string | null,
+  nama?: string | null,
+  gelarBelakang?: string | null,
+): string {
+  const namaCore = (nama || '').trim()
+  if (!namaCore) return ''
+
+  const depanRaw = (gelarDepan || '').trim()
+  const belakangRaw = (gelarBelakang || '').trim()
+
+  const depan = depanRaw && !depanRaw.endsWith('.') ? `${depanRaw}.` : depanRaw
+  const belakang = belakangRaw && !belakangRaw.endsWith('.') ? `${belakangRaw}.` : belakangRaw
+
+  let result = namaCore
+  if (depan) result = `${depan} ${result}`
+  if (belakang) result = `${result}, ${belakang}`
+  return result
+}

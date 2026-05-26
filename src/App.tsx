@@ -6,6 +6,7 @@ import { LayoutProvider } from '@/context/layout-provider'
 import { UpdateProvider } from '@/contexts/UpdateContext'
 import { AIProvider, useAI } from '@/contexts/AIContext'
 import { AIDrawer } from '@/components/ai/AIDrawer'
+import { LetterPreviewBridge } from '@/components/ai/LetterPreviewBridge'
 import { NavigationContext } from '@/lib/router'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
@@ -137,10 +138,16 @@ export default App
 function AIDrawerHost() {
   const ai = useAI()
   return (
-    <AIDrawer
-      open={ai.drawerOpen}
-      onOpenChange={(open) => (open ? ai.openDrawer() : ai.closeDrawer())}
-      defaultMode={ai.drawerMode}
-    />
+    <>
+      <AIDrawer
+        open={ai.drawerOpen}
+        onOpenChange={(open) => (open ? ai.openDrawer() : ai.closeDrawer())}
+        defaultMode={ai.drawerMode}
+      />
+      {/* Render preview dialog at root level (sibling of Sheet, not child)
+          to prevent Radix nested-portal cleanup race that leaves the body
+          pointer-events disabled and freezes UI rendering. */}
+      <LetterPreviewBridge bridge={ai.previewBridge} />
+    </>
   )
 }

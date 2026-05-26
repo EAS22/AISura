@@ -13,6 +13,7 @@ interface TemplateUpdateInput {
   nama: string;
   deskripsi: string;
   prefixSurat: string;
+  signerUrutan: number;
   updatedAt: string;
   placeholders?: ReturnType<typeof detectPlaceholders>;
   wargaCount?: number;
@@ -21,14 +22,14 @@ interface TemplateUpdateInput {
 export function buildTemplateUpdateSql(input: TemplateUpdateInput): { sql: string; params: unknown[] } {
   if (input.placeholders && typeof input.wargaCount === 'number') {
     return {
-      sql: 'UPDATE templates SET nama=$1, deskripsi=$2, prefix_surat=$3, placeholders=$4, warga_count=$5, updated_at=$6 WHERE id=$7',
-      params: [input.nama, input.deskripsi, input.prefixSurat, JSON.stringify(input.placeholders), input.wargaCount, input.updatedAt, input.id],
+      sql: 'UPDATE templates SET nama=$1, deskripsi=$2, prefix_surat=$3, signer_urutan=$4, placeholders=$5, warga_count=$6, updated_at=$7 WHERE id=$8',
+      params: [input.nama, input.deskripsi, input.prefixSurat, input.signerUrutan, JSON.stringify(input.placeholders), input.wargaCount, input.updatedAt, input.id],
     };
   }
 
   return {
-    sql: 'UPDATE templates SET nama=$1, deskripsi=$2, prefix_surat=$3, updated_at=$4 WHERE id=$5',
-    params: [input.nama, input.deskripsi, input.prefixSurat, input.updatedAt, input.id],
+    sql: 'UPDATE templates SET nama=$1, deskripsi=$2, prefix_surat=$3, signer_urutan=$4, updated_at=$5 WHERE id=$6',
+    params: [input.nama, input.deskripsi, input.prefixSurat, input.signerUrutan, input.updatedAt, input.id],
   };
 }
 
@@ -58,7 +59,8 @@ export async function uploadTemplate(
   fileBytes: Uint8Array,
   nama: string,
   deskripsi: string,
-  prefixSurat: string = ''
+  prefixSurat: string = '',
+  signerUrutan: number = 1,
 ): Promise<TemplateSurat> {
   const id = uuid();
   const filename = `${id}.docx`;
@@ -73,15 +75,16 @@ export async function uploadTemplate(
   const now = new Date().toISOString();
 
   await execute(
-    `INSERT INTO templates (id, nama, deskripsi, file_path, placeholders, warga_count, prefix_surat, created_at, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-    [id, nama, deskripsi, filePath, JSON.stringify(placeholders), wargaCount, prefixSurat, now, now]
+    `INSERT INTO templates (id, nama, deskripsi, file_path, placeholders, warga_count, prefix_surat, signer_urutan, created_at, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+    [id, nama, deskripsi, filePath, JSON.stringify(placeholders), wargaCount, prefixSurat, signerUrutan, now, now]
   );
 
   return {
     id, nama, deskripsi, file_path: filePath,
     placeholders: JSON.stringify(placeholders),
-    warga_count: wargaCount, prefix_surat: prefixSurat, created_at: now, updated_at: now,
+    warga_count: wargaCount, prefix_surat: prefixSurat, signer_urutan: signerUrutan,
+    created_at: now, updated_at: now,
   };
 }
 
@@ -90,6 +93,7 @@ export async function updateTemplate(
   nama: string,
   deskripsi: string,
   prefixSurat: string,
+  signerUrutan: number = 1,
   fileBytes?: Uint8Array
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -99,12 +103,12 @@ export async function updateTemplate(
     await writeFile(template.file_path, fileBytes, { baseDir: BaseDirectory.AppConfig });
     const placeholders = await detectPlaceholdersFromDocx(fileBytes);
     const wargaCount = countWargaSlots(placeholders);
-    const update = buildTemplateUpdateSql({ id, nama, deskripsi, prefixSurat, updatedAt: now, placeholders, wargaCount });
+    const update = buildTemplateUpdateSql({ id, nama, deskripsi, prefixSurat, signerUrutan, updatedAt: now, placeholders, wargaCount });
     await execute(update.sql, update.params);
     return;
   }
 
-  const update = buildTemplateUpdateSql({ id, nama, deskripsi, prefixSurat, updatedAt: now });
+  const update = buildTemplateUpdateSql({ id, nama, deskripsi, prefixSurat, signerUrutan, updatedAt: now });
   await execute(update.sql, update.params);
 }
 

@@ -10,6 +10,7 @@ import { findKepalaKeluarga, getWargaById, searchWarga } from '../wargaService'
 import { getCurrentCounter, getNomorSuratConfig } from '../nomorSuratService'
 import { generateMultiNomorParts } from '@/utils/nomorSuratGenerator'
 import { applyTextModifier, type TextModifier } from '@/utils/textTransform'
+import { formatNamaPerangkat } from '@/lib/utils'
 
 const BULAN_INDONESIA = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
 
@@ -75,7 +76,7 @@ function wargaFieldMap(
 function perangkatFieldMap(pd: PerangkatDesa): Record<string, string> {
   return {
     NAMA: pd.nama || '',
-    NAMA_LENGKAP: [pd.gelar_depan, pd.nama, pd.gelar_belakang].filter(Boolean).join(' '),
+    NAMA_LENGKAP: formatNamaPerangkat(pd.gelar_depan, pd.nama, pd.gelar_belakang),
     NIK: pd.nik || '',
     NIPD: pd.nipd || '',
     JABATAN: pd.jabatan || '',
@@ -111,6 +112,20 @@ const PERANGKAT_DESA_ALIASES: Record<string, string> = {
   ALAMAT_SEKRETARIS_DESA: 'PD2_ALAMAT',
 }
 
+/**
+ * Aliases that conceptually refer to "the letter signer" — these should
+ * follow the per-template `signer_urutan` rather than always PD1.
+ * (SEKRETARIS_DESA aliases are NOT in this set; they always literally
+ * mean PD2 = Sekretaris.)
+ */
+const SIGNER_ALIASES = new Set([
+  'KEPALA_DESA',
+  'NIK_KEPALA_DESA',
+  'NIPD_KEPALA_DESA',
+  'JABATAN_KEPALA_DESA',
+  'ALAMAT_KEPALA_DESA',
+])
+
 const MODIFIER_RE = /_(U|L|P)$/
 
 function splitTokenAndModifier(token: string): { base: string; modifier?: TextModifier } {
@@ -125,6 +140,7 @@ interface PlaceholderResolveContext {
   dataDesa: DataDesa | null
   perangkat: PerangkatDesa[]
   nomor: Record<string, string> // already-prefixed values (NOMOR_SURAT, S_NOMOR, etc.)
+  signerUrutan: number
 }
 
 function resolveSinglePlaceholder(token: string, ctx: PlaceholderResolveContext): string | null {
@@ -161,7 +177,11 @@ function resolveSinglePlaceholder(token: string, ctx: PlaceholderResolveContext)
     const target = PERANGKAT_DESA_ALIASES[base]
     const aliasMatch = target.match(/^PD(\d+)_(.+)$/)
     if (aliasMatch) {
-      const urutan = parseInt(aliasMatch[1], 10)
+      // For "signer aliases" (KEPALA_DESA*), redirect to the configured signer
+      // urutan instead of literal PD1. Other aliases (SEKRETARIS_DESA*) keep
+      // their literal mapping.
+      const literalUrutan = parseInt(aliasMatch[1], 10)
+      const urutan = SIGNER_ALIASES.has(base) ? ctx.signerUrutan : literalUrutan
       const field = aliasMatch[2]
       const pd = ctx.perangkat.find((p) => p.urutan === urutan)
       if (!pd) return ''
@@ -297,6 +317,7 @@ export async function buildPreparedLetter(input: BuildPreparedLetterInput): Prom
     dataDesa,
     perangkat,
     nomor,
+    signerUrutan: template.signer_urutan || 1,
   }
 
   // Build resolved values for every detected token

@@ -1,5 +1,8 @@
-// Bridges AI's preview_letter tool call to a docx preview modal,
-// rendered as part of the AI drawer flow.
+// Bridges AI's preview_letter tool call to a docx preview modal.
+// Mounted at App root level (NOT nested inside the AI drawer Sheet) to
+// avoid Radix portal cleanup race when nested dialogs unmount in
+// different orders, which can leave `body { pointer-events: none }`
+// stale and freeze the entire app UI.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -14,9 +17,6 @@ interface PreviewRequest {
 
 export interface LetterPreviewBridgeApi {
   requestPreview: (input: PreviewRequest) => Promise<void>
-}
-
-export function useLetterPreviewBridge(): LetterPreviewBridgeApi & {
   isOpen: boolean
   pending: PreviewRequest | null
   blob: Blob | null
@@ -24,19 +24,41 @@ export function useLetterPreviewBridge(): LetterPreviewBridgeApi & {
   loading: boolean
   error: string | null
   setOpen: (open: boolean) => void
-} {
-  const [isOpen, setOpen] = useState(false)
+}
+
+export function useLetterPreviewBridge(): LetterPreviewBridgeApi {
+  const [isOpen, setOpenState] = useState(false)
   const [pending, setPending] = useState<PreviewRequest | null>(null)
   const [blob, setBlob] = useState<Blob | null>(null)
   const [filename, setFilename] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Wrap open setter so when dialog closes we clear blob and any DOM
+  // pointer-events lock that Radix portal might leave behind.
+  const setOpen = useCallback((next: boolean) => {
+    setOpenState(next)
+    if (!next) {
+      // Defer: let Radix run its own onCloseAutoFocus first.
+      setTimeout(() => {
+        // Some Radix versions leave body[data-scroll-locked] or
+        // pointer-events: none after nested portal close. Clear it.
+        if (typeof document !== 'undefined') {
+          document.body.style.pointerEvents = ''
+          document.body.removeAttribute('data-scroll-locked')
+        }
+        setBlob(null)
+        setPending(null)
+        setError(null)
+      }, 200)
+    }
+  }, [])
+
   const requestPreview = useCallback(async (input: PreviewRequest) => {
     setError(null)
     setBlob(null)
     setPending(input)
-    setOpen(true)
+    setOpenState(true)
     setLoading(true)
     try {
       const svc = await import('@/services/templateService')
@@ -58,7 +80,7 @@ export function useLetterPreviewBridge(): LetterPreviewBridgeApi & {
   return { requestPreview, isOpen, pending, blob, filename, loading, error, setOpen }
 }
 
-export function LetterPreviewBridge({ bridge }: { bridge: ReturnType<typeof useLetterPreviewBridge> }) {
+export function LetterPreviewBridge({ bridge }: { bridge: LetterPreviewBridgeApi }) {
   const previewRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {

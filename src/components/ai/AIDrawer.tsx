@@ -11,7 +11,7 @@ import { ChoiceCardList } from './ChoiceCard'
 import { StatusPanel } from './StatusPanel'
 import { useAIChat, type UIMessage } from './useAIChat'
 import { TemplateSuggesterPanel } from './TemplateSuggesterPanel'
-import { LetterPreviewBridge, useLetterPreviewBridge } from './LetterPreviewBridge'
+import type { LetterPreviewBridgeApi } from './LetterPreviewBridge'
 
 interface AIDrawerProps {
   open: boolean
@@ -23,7 +23,6 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
   const ai = useAI()
   const { navigate } = useNavigationContext()
   const [mode, setMode] = useState<'chat' | 'template'>(defaultMode)
-  const previewBridge = useLetterPreviewBridge()
 
   useEffect(() => {
     if (open) setMode(defaultMode)
@@ -74,7 +73,7 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
             </div>
 
             <TabsContent value="chat" className="m-0 flex flex-1 min-h-0 flex-col">
-              <ChatPanel previewBridge={previewBridge} />
+              <ChatPanel previewBridge={ai.previewBridge} />
             </TabsContent>
 
             <TabsContent value="template" className="m-0 flex flex-1 min-h-0 flex-col">
@@ -82,7 +81,6 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
             </TabsContent>
           </Tabs>
         )}
-        <LetterPreviewBridge bridge={previewBridge} />
       </SheetContent>
     </Sheet>
   )
@@ -93,7 +91,7 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
 // =================================================================
 
 interface ChatPanelProps {
-  previewBridge: ReturnType<typeof useLetterPreviewBridge>
+  previewBridge: LetterPreviewBridgeApi
 }
 
 function ChatPanel({ previewBridge }: ChatPanelProps) {
@@ -141,6 +139,22 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
       submit()
     }
   }
+
+  // Refocus textarea ketika reply AI selesai (chat.busy false→true→false transition).
+  // Tanpa ini, focus hilang saat textarea di-disable selama AI memproses.
+  const wasBusyRef = useRef(false)
+  useEffect(() => {
+    if (wasBusyRef.current && !chat.busy) {
+      // AI baru saja selesai. Refocus textarea kalau drawer masih ke-render.
+      // Pakai setTimeout supaya state disabled dilepas dulu di DOM.
+      const t = setTimeout(() => {
+        inputRef.current?.focus()
+      }, 50)
+      wasBusyRef.current = chat.busy
+      return () => clearTimeout(t)
+    }
+    wasBusyRef.current = chat.busy
+  }, [chat.busy])
 
   const handlePreview = async () => {
     if (!chat.status || !chat.status.values) return

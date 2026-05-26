@@ -63,6 +63,8 @@ export interface TemplateSurat {
   placeholders: string;
   warga_count: number;
   prefix_surat: string;
+  /** Urutan perangkat desa yang akan tanda tangan (default 1 = Kepala Desa). */
+  signer_urutan: number;
   created_at: string;
   updated_at: string;
 }

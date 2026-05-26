@@ -11,6 +11,7 @@ import { getAllPerangkatDesa, savePerangkatDesa, deletePerangkatDesa } from '@/s
 import { searchWarga } from '@/services/wargaService'
 import { createImageDataUrl, SUPPORTED_IMAGE_EXTENSIONS } from '@/services/imageFileService'
 import { useConfirm } from '@/hooks/use-confirm'
+import { formatNamaPerangkat } from '@/lib/utils'
 import type { DataDesa, PerangkatDesa, Warga } from '@/types'
 import { crmShell } from '@/lib/aisura-crm-ui'
 
@@ -179,7 +180,7 @@ export function DataDesaPage() {
                   <TableCell className="font-data-number text-muted-foreground">PD{pd.urutan || i + 1}</TableCell>
                   <TableCell>{pd.jabatan}</TableCell>
                   <TableCell className="font-medium">
-                    {[pd.gelar_depan, pd.nama, pd.gelar_belakang].filter(Boolean).join(' ') || '-'}
+                    {formatNamaPerangkat(pd.gelar_depan, pd.nama, pd.gelar_belakang) || '-'}
                   </TableCell>
                   <TableCell className="font-data-number text-foreground/80">{pd.nik || '-'}</TableCell>
                   <TableCell className="font-data-number text-foreground/80">{pd.nipd || '-'}</TableCell>
