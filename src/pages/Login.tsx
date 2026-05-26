@@ -65,7 +65,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
   ].filter(Boolean).join(' • ')
 
   return (
-    <div className="relative grid min-h-svh w-full lg:grid-cols-2">
+    <div className="relative grid min-h-svh w-full lg:grid-cols-[65fr_35fr]">
       {/* Theme switch - top right corner across entire screen */}
       <div className="absolute right-4 top-4 z-30">
         <ThemeSwitch />
@@ -110,7 +110,7 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
           </div>
 
           {dataDesa?.desa && (
-            <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 backdrop-blur-md">
+            <div className="inline-flex max-w-full items-center gap-3 rounded-2xl border border-white/15 bg-white/10 p-3 pr-5 backdrop-blur-md">
               {dataDesa.logo_desa ? (
                 <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 shrink-0 object-contain" />
               ) : (
@@ -119,9 +119,9 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
                 </div>
               )}
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">Pemerintah Desa {dataDesa.desa}</p>
+                <p className="text-sm font-semibold">Pemerintah Desa {dataDesa.desa}</p>
                 {desaSubtitle && (
-                  <p className="truncate text-xs text-white/65">{desaSubtitle}</p>
+                  <p className="text-xs text-white/65">{desaSubtitle}</p>
                 )}
               </div>
             </div>
@@ -219,22 +219,12 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
               {loading ? 'Memproses...' : isSetup ? 'Buat Password' : 'Masuk'}
             </Button>
           </form>
-
-          {/* Helper / footer block */}
-          <div className="space-y-3">
-            {!isSetup && (
-              <p className="text-center text-xs text-muted-foreground">
-                Lupa password? Reset via{' '}
-                <span className="font-medium text-foreground">Pengaturan &gt; Aplikasi</span>{' '}
-                pada perangkat dengan akses.
-              </p>
-            )}
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-              <span>© {new Date().getFullYear()} EAS Creative Studio</span>
-              <span>v{APP_VERSION}</span>
-            </div>
-          </div>
         </div>
+      </div>
+
+      {/* Footer copyright - bottom right corner */}
+      <div className="pointer-events-none absolute bottom-4 right-4 z-20 text-[11px] text-white/70 lg:text-muted-foreground">
+        © {new Date().getFullYear()} EAS Creative Studio
       </div>
     </div>
   )
