@@ -104,7 +104,7 @@ export function RiwayatSuratPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Static header */}
-      <div className={cn(crmShell.card, 'shrink-0 p-4')}>
+      <div className={cn(crmShell.glass, 'shrink-0 p-4')}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className={crmShell.eyebrow}>Document history</p>
@@ -179,7 +179,7 @@ export function RiwayatSuratPage() {
 
       {/* Static pagination footer */}
       {totalPages > 1 && (
-        <div className={cn(crmShell.card, 'shrink-0 p-3')}>
+        <div className={cn(crmShell.glass, 'shrink-0 p-3')}>
           <div className="flex items-center justify-center gap-2">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Prev</Button>
             <span className="text-sm text-muted-foreground">{page + 1} / {totalPages}</span>

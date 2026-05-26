@@ -10,6 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Search, Download, CalendarIcon, Eye } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { crmShell } from '@/lib/aisura-crm-ui'
 import { searchWarga, findKepalaKeluarga } from '@/services/wargaService'
 import { getDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
@@ -293,7 +294,7 @@ export function BuatSurat() {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {/* Static header */}
-      <div className="shrink-0 rounded-xl border bg-background/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className={cn(crmShell.glass, 'shrink-0 p-4')}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
@@ -372,7 +373,7 @@ export function BuatSurat() {
       </div>
 
       {/* Static action bar */}
-      <div className="shrink-0 rounded-xl border bg-background/95 p-3 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div className={cn(crmShell.glass, 'shrink-0 p-3')}>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-muted-foreground">
             {wargaSlots.length > 0 ? `${wargaSlots.length} section warga` : 'Tanpa data warga'}

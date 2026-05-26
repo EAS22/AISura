@@ -17,12 +17,14 @@
     @apply h-full w-full overflow-hidden bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar;
     font-family: 'Poppins', sans-serif;
     background:
-      radial-gradient(circle at top left, rgb(219 234 254 / 0.75), transparent 34rem),
-      linear-gradient(135deg, rgb(248 250 252), rgb(239 246 255) 48%, rgb(248 250 252));
+      radial-gradient(circle at top left, rgb(191 219 254 / 0.78), transparent 32rem),
+      radial-gradient(circle at bottom right, rgb(199 210 254 / 0.55), transparent 30rem),
+      linear-gradient(135deg, rgb(248 250 252), rgb(238 242 255) 48%, rgb(248 250 252));
   }
   .dark body {
     background:
-      radial-gradient(circle at top left, rgb(30 64 175 / 0.28), transparent 34rem),
+      radial-gradient(circle at top left, rgb(30 64 175 / 0.32), transparent 32rem),
+      radial-gradient(circle at bottom right, rgb(67 56 202 / 0.22), transparent 30rem),
       linear-gradient(135deg, rgb(9 9 11), rgb(24 24 27) 48%, rgb(9 9 11));
   }
   #root {
