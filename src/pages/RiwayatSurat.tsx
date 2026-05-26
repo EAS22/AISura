@@ -3,7 +3,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Download, Trash2, RotateCcw, Search } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Download, Trash2, RotateCcw, Search, FileText } from 'lucide-react'
 import { getAllRiwayat, deleteRiwayat, deleteAllRiwayat, getRiwayatData } from '@/services/riwayatService'
 import { exportRiwayatToExcel } from '@/utils/excelExporter'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -18,6 +19,10 @@ export function RiwayatSuratPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
+  const [detailModal, setDetailModal] = useState(false)
+  const [detailRiwayat, setDetailRiwayat] = useState<RiwayatSurat | null>(null)
+  const [detailPlaceholders, setDetailPlaceholders] = useState<Record<string, string>>({})
+  const [detailLoading, setDetailLoading] = useState(false)
   const perPage = 50
 
   useEffect(() => { loadData() }, [])
@@ -54,6 +59,21 @@ export function RiwayatSuratPage() {
     const ok = await confirm({ title: 'Hapus Semua Riwayat?', description: 'Semua riwayat surat akan dihapus permanen.' })
     if (!ok) return
     await deleteAllRiwayat(); await loadData()
+  }
+
+  const handleShowDetail = async (r: RiwayatSurat) => {
+    setDetailRiwayat(r)
+    setDetailPlaceholders({})
+    setDetailModal(true)
+    setDetailLoading(true)
+    try {
+      const data = await getRiwayatData(r.id)
+      setDetailPlaceholders(data || {})
+    } catch (err) {
+      console.error('Gagal load detail riwayat', err)
+    } finally {
+      setDetailLoading(false)
+    }
   }
 
   const handleRegenerate = async (r: RiwayatSurat) => {
@@ -124,7 +144,11 @@ export function RiwayatSuratPage() {
               </TableHeader>
               <TableBody className="font-table">
                 {paginated.map((r, i) => (
-                  <TableRow key={r.id}>
+                  <TableRow
+                    key={r.id}
+                    onClick={() => handleShowDetail(r)}
+                    className="cursor-pointer transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/20"
+                  >
                     <TableCell className="text-muted-foreground font-data-number">{page * perPage + i + 1}</TableCell>
                     <TableCell className="font-data-number text-foreground/80">{new Date(r.tanggal_generate).toLocaleDateString('id-ID')}</TableCell>
                     <TableCell className="font-semibold font-data-number">
@@ -137,7 +161,7 @@ export function RiwayatSuratPage() {
                     <TableCell className="font-semibold">{r.pemohon_nama || '-'}</TableCell>
                     <TableCell className="font-data-number text-foreground/80">{r.pemohon_nik || '-'}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRegenerate(r)} title="Generate ulang"><RotateCcw className="h-3.5 w-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete(r.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
@@ -165,6 +189,150 @@ export function RiwayatSuratPage() {
       )}
 
       <ConfirmDialog />
+
+      {/* Detail Modal */}
+      <Dialog open={detailModal} onOpenChange={setDetailModal}>
+        <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-blue-600" />
+              Detail Riwayat Surat
+            </DialogTitle>
+          </DialogHeader>
+          {detailRiwayat && (
+            <RiwayatDetailView
+              riwayat={detailRiwayat}
+              placeholders={detailPlaceholders}
+              loading={detailLoading}
+            />
+          )}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setDetailModal(false)}>Tutup</Button>
+            {detailRiwayat && (
+              <Button onClick={() => { setDetailModal(false); handleRegenerate(detailRiwayat) }}>
+                <RotateCcw className="mr-1 h-3.5 w-3.5" />Generate Ulang
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function RiwayatDetailView({ riwayat, placeholders, loading }: { riwayat: RiwayatSurat; placeholders: Record<string, string>; loading: boolean }) {
+  const formatDate = (iso?: string) => {
+    if (!iso) return '-'
+    try { return new Date(iso).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' }) } catch { return iso }
+  }
+
+  // Group placeholders by category prefix
+  const groups: Record<string, [string, string][]> = {
+    'Nomor Surat': [],
+    'Warga': [],
+    'Perangkat Desa': [],
+    'Desa': [],
+    'Lainnya': [],
+  }
+
+  const DESA_TOKENS = ['DESA', 'KECAMATAN', 'KABUPATEN', 'PROVINSI', 'KODE_POS', 'TELEPON_DESA', 'EMAIL_DESA', 'ALAMAT_KANTOR_DESA', 'KOP_SURAT']
+  const PERANGKAT_ALIASES = ['KEPALA_DESA', 'NIK_KEPALA_DESA', 'NIPD_KEPALA_DESA', 'JABATAN_KEPALA_DESA', 'ALAMAT_KEPALA_DESA', 'SEKRETARIS_DESA', 'NIK_SEKRETARIS_DESA', 'NIPD_SEKRETARIS_DESA', 'JABATAN_SEKRETARIS_DESA', 'ALAMAT_SEKRETARIS_DESA']
+
+  for (const [key, value] of Object.entries(placeholders)) {
+    if (/^N\d+_/.test(key) || key === 'NOMOR_SURAT' || key.startsWith('S_')) {
+      groups['Nomor Surat'].push([key, value])
+    } else if (/^W\d+_/.test(key)) {
+      groups['Warga'].push([key, value])
+    } else if (/^PD\d+_/.test(key) || PERANGKAT_ALIASES.includes(key.replace(/_(U|L|P)$/, ''))) {
+      groups['Perangkat Desa'].push([key, value])
+    } else if (DESA_TOKENS.includes(key.replace(/_(U|L|P)$/, ''))) {
+      groups['Desa'].push([key, value])
+    } else {
+      groups['Lainnya'].push([key, value])
+    }
+  }
+
+  // Sort each group alphabetically (with W1, W2, ... ordered numerically)
+  const slotSort = (a: [string, string], b: [string, string]) => a[0].localeCompare(b[0], 'en', { numeric: true })
+  for (const k of Object.keys(groups)) groups[k].sort(slotSort)
+
+  return (
+    <div className="space-y-4">
+      {/* Header info */}
+      <div className="rounded-2xl border border-blue-200/70 bg-gradient-to-br from-blue-50/80 via-background to-background p-4 dark:border-blue-900/50 dark:from-blue-950/20">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <DetailItem label="Nomor Surat" value={riwayat.nomor_surat} bold mono />
+          <DetailItem label="Template" value={riwayat.template_nama} bold />
+          <DetailItem label="Tanggal Generate" value={formatDate(riwayat.tanggal_generate)} />
+          <DetailItem
+            label="Nomor Urut"
+            value={riwayat.nomor_urut_akhir > riwayat.nomor_urut
+              ? `${riwayat.nomor_urut} – ${riwayat.nomor_urut_akhir}`
+              : String(riwayat.nomor_urut)}
+            mono
+          />
+        </div>
+      </div>
+
+      {/* Pemohon snapshot */}
+      <DetailGroup title="Pemohon">
+        <DetailItem label="Nama" value={riwayat.pemohon_nama} bold />
+        <DetailItem label="NIK" value={riwayat.pemohon_nik} mono />
+        <DetailItem label="Alamat" value={riwayat.pemohon_alamat} colSpan />
+      </DetailGroup>
+
+      {/* Placeholder data per group */}
+      {loading ? (
+        <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
+          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          Memuat data placeholder...
+        </div>
+      ) : (
+        <>
+          {Object.entries(groups).map(([title, entries]) => entries.length > 0 && (
+            <DetailGroup key={title} title={`Data ${title}`}>
+              {entries.map(([key, value]) => {
+                const isImage = typeof value === 'string' && value.startsWith('data:image/')
+                return (
+                  <DetailItem
+                    key={key}
+                    label={key}
+                    value={isImage ? '(gambar)' : value}
+                    colSpan={(value || '').length > 40 || isImage}
+                    mono
+                  />
+                )
+              })}
+            </DetailGroup>
+          ))}
+          {Object.values(groups).every(g => g.length === 0) && (
+            <div className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+              Tidak ada data placeholder tersimpan untuk riwayat ini.
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{title}</p>
+      <div className="grid grid-cols-2 gap-2 rounded-xl border bg-slate-50/70 p-3 dark:bg-zinc-900/50">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function DetailItem({ label, value, bold, mono, colSpan }: { label: string; value?: string | number; bold?: boolean; mono?: boolean; colSpan?: boolean }) {
+  const display = value === '' || value === null || value === undefined ? '-' : value
+  return (
+    <div className={cn('space-y-0.5', colSpan && 'col-span-2')}>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn('text-sm break-words', bold && 'font-semibold', mono && 'font-data-number')}>{display}</p>
     </div>
   )
 }

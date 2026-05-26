@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Upload, Download, Trash2, Search, Pencil, Plus } from 'lucide-react'
+import { Upload, Download, Trash2, Search, Pencil, Plus, IdCard } from 'lucide-react'
 import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, addWarga, getWargaCount } from '@/services/wargaService'
 import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
@@ -26,6 +26,8 @@ export function DataWarga() {
   const [editData, setEditData] = useState<Partial<Warga>>({})
   const [addModal, setAddModal] = useState(false)
   const [addData, setAddData] = useState<Partial<Warga>>({})
+  const [detailModal, setDetailModal] = useState(false)
+  const [detailData, setDetailData] = useState<Warga | null>(null)
   const perPage = 50
 
   useEffect(() => { loadData() }, [])
@@ -80,6 +82,11 @@ export function DataWarga() {
   const handleEdit = (w: Warga) => {
     setEditData({ ...w })
     setEditModal(true)
+  }
+
+  const handleShowDetail = (w: Warga) => {
+    setDetailData(w)
+    setDetailModal(true)
   }
 
   const handleSaveEdit = async () => {
@@ -154,7 +161,11 @@ export function DataWarga() {
               </TableHeader>
               <TableBody className="font-table">
                 {paginated.map((w, i) => (
-                  <TableRow key={w.id}>
+                  <TableRow
+                    key={w.id}
+                    onClick={() => handleShowDetail(w)}
+                    className="cursor-pointer transition-colors hover:bg-blue-50/60 dark:hover:bg-blue-950/20"
+                  >
                     <TableCell className="text-muted-foreground font-data-number">{page * perPage + i + 1}</TableCell>
                     <TableCell className="font-data-number text-foreground/90">{w.nik}</TableCell>
                     <TableCell className="font-semibold">{w.nama}</TableCell>
@@ -162,7 +173,7 @@ export function DataWarga() {
                     <TableCell className="max-w-[320px] truncate text-foreground/80">{w.alamat}</TableCell>
                     <TableCell className="font-data-number">{w.rt.padStart(3, '0')}/{w.rw.padStart(3, '0')}</TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleEdit(w)}><Pencil className="h-3.5 w-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteSingle(w.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
@@ -188,6 +199,27 @@ export function DataWarga() {
           </div>
         </div>
       )}
+
+      {/* Detail Modal */}
+      <Dialog open={detailModal} onOpenChange={setDetailModal}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <IdCard className="h-5 w-5 text-blue-600" />
+              Detail Data Warga
+            </DialogTitle>
+          </DialogHeader>
+          {detailData && <WargaDetailView data={detailData} />}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setDetailModal(false)}>Tutup</Button>
+            {detailData && (
+              <Button onClick={() => { setDetailModal(false); handleEdit(detailData) }}>
+                <Pencil className="mr-1 h-3.5 w-3.5" />Edit
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Modal */}
       <Dialog open={editModal} onOpenChange={setEditModal}>
@@ -241,6 +273,83 @@ function WargaFormFields({ data, onChange }: { data: Partial<Warga>; onChange: (
       <div className="space-y-1 col-span-2"><Label className="text-xs">Alamat</Label><Input value={data.alamat || ''} onChange={e => onChange({ ...data, alamat: e.target.value })} className="h-8 text-xs" /></div>
       <div className="space-y-1"><Label className="text-xs">RT</Label><Input value={data.rt || ''} onChange={e => onChange({ ...data, rt: e.target.value })} className="h-8 text-xs" placeholder="001" /></div>
       <div className="space-y-1"><Label className="text-xs">RW</Label><Input value={data.rw || ''} onChange={e => onChange({ ...data, rw: e.target.value })} className="h-8 text-xs" placeholder="001" /></div>
+    </div>
+  )
+}
+
+function WargaDetailView({ data }: { data: Warga }) {
+  const computeUmur = (tgl: string) => {
+    if (!tgl) return '-'
+    const [d, m, y] = tgl.split('-').map(Number)
+    if (!d || !m || !y) return '-'
+    const birth = new Date(y, m - 1, d)
+    const today = new Date()
+    let age = today.getFullYear() - birth.getFullYear()
+    if (today.getMonth() < birth.getMonth() || (today.getMonth() === birth.getMonth() && today.getDate() < birth.getDate())) age--
+    return `${age} tahun`
+  }
+
+  const formatDate = (iso?: string) => {
+    if (!iso) return '-'
+    try { return new Date(iso).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) } catch { return iso }
+  }
+
+  return (
+    <div className="space-y-4">
+      <DetailGroup title="Identitas">
+        <DetailItem label="Nama" value={data.nama} bold />
+        <DetailItem label="NIK" value={data.nik} mono />
+        <DetailItem label="Nomor KK" value={data.no_kk} mono />
+        <DetailItem label="Jenis Kelamin" value={data.jenis_kelamin} />
+        <DetailItem label="Tempat Lahir" value={data.tempat_lahir} />
+        <DetailItem label="Tanggal Lahir" value={data.tanggal_lahir} />
+        <DetailItem label="Umur" value={computeUmur(data.tanggal_lahir)} />
+        <DetailItem label="Agama" value={data.agama} />
+        <DetailItem label="Status Perkawinan" value={data.status} />
+        <DetailItem label="Hubungan Keluarga" value={data.hub_keluarga} />
+      </DetailGroup>
+
+      <DetailGroup title="Pendidikan & Pekerjaan">
+        <DetailItem label="Pendidikan" value={data.pendidikan} />
+        <DetailItem label="Pekerjaan" value={data.pekerjaan} />
+      </DetailGroup>
+
+      <DetailGroup title="Orang Tua">
+        <DetailItem label="Nama Ayah" value={data.nama_ayah} />
+        <DetailItem label="Nama Ibu" value={data.nama_ibu} />
+      </DetailGroup>
+
+      <DetailGroup title="Alamat">
+        <DetailItem label="Alamat" value={data.alamat} colSpan />
+        <DetailItem label="RT" value={data.rt?.padStart(3, '0')} mono />
+        <DetailItem label="RW" value={data.rw?.padStart(3, '0')} mono />
+      </DetailGroup>
+
+      <DetailGroup title="Metadata">
+        <DetailItem label="Dibuat" value={formatDate(data.created_at)} />
+        <DetailItem label="Diperbarui" value={formatDate(data.updated_at)} />
+      </DetailGroup>
+    </div>
+  )
+}
+
+function DetailGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{title}</p>
+      <div className="grid grid-cols-2 gap-2 rounded-xl border bg-slate-50/70 p-3 dark:bg-zinc-900/50">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function DetailItem({ label, value, bold, mono, colSpan }: { label: string; value?: string | number; bold?: boolean; mono?: boolean; colSpan?: boolean }) {
+  const display = value === '' || value === null || value === undefined ? '-' : value
+  return (
+    <div className={cn('space-y-0.5', colSpan && 'col-span-2')}>
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className={cn('text-sm break-words', bold && 'font-semibold', mono && 'font-data-number')}>{display}</p>
     </div>
   )
 }
