@@ -9,13 +9,21 @@ import {
   OFF_TOPIC_REPLY,
   streamChatCompletion,
   type AIChatMessage,
+  type AIChoice,
+  type AILetterStatus,
+  type AIQuickReplies,
   type AIResolvedCredentials,
   type SessionState,
   type ToolContext,
 } from '@/services/ai'
 
-interface UIMessage extends AIChatMessage {
+export interface UIMessage extends AIChatMessage {
   uiId: string
+  /** Set on tool-role messages: structured payload for choice cards / status. */
+  quickReplies?: AIQuickReplies
+  status?: AILetterStatus
+  /** Set when user clicks a choice card — used to render compact pill in chat history. */
+  pickedFrom?: { kind: 'pick_template' | 'pick_warga'; choiceId: string }
 }
 
 interface UseAIChatOptions {
@@ -27,8 +35,13 @@ interface UseAIChatResult {
   busy: boolean
   error: string | null
   send: (text: string) => Promise<void>
+  pickChoice: (choice: AIChoice, kind: AIQuickReplies['kind'], slot?: number) => Promise<void>
   reset: () => void
   abort: () => void
+  /** Latest letter status snapshot (mirrors session.lastStatus). */
+  status: AILetterStatus | null
+  /** Latest unanswered quick replies (cleared once user picks or sends another message). */
+  pendingChoices: AIQuickReplies | null
 }
 
 const MAX_TOOL_ROUNDS = 8
@@ -37,6 +50,8 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
   const [messages, setMessages] = useState<UIMessage[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [status, setStatus] = useState<AILetterStatus | null>(null)
+  const [pendingChoices, setPendingChoices] = useState<AIQuickReplies | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const sessionRef = useRef<SessionState>(createSessionState())
 
@@ -47,6 +62,8 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
     setMessages([])
     setBusy(false)
     setError(null)
+    setStatus(null)
+    setPendingChoices(null)
   }, [])
 
   const abort = useCallback(() => {
@@ -55,8 +72,35 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
     setBusy(false)
   }, [])
 
-  const send = useCallback(
-    async (text: string) => {
+  /**
+   * If the user types a bare digit while a quick-reply set is pending,
+   * translate to a structured choice message before sending.
+   */
+  const interceptNumericReply = useCallback(
+    (text: string): { kind: 'literal' | 'choice'; payload: string; choice?: AIChoice; meta?: { kind: 'pick_template' | 'pick_warga'; slot?: number } } => {
+      const digit = text.trim().match(/^([1-9]\d?)$/)
+      if (!digit || !pendingChoices) return { kind: 'literal', payload: text }
+      const idx = parseInt(digit[1], 10) - 1
+      const choice = pendingChoices.choices[idx]
+      if (!choice) return { kind: 'literal', payload: text }
+      return {
+        kind: 'choice',
+        payload: structuredChoiceMessage(choice, pendingChoices.kind, pendingChoices.slot),
+        choice,
+        meta: { kind: pendingChoices.kind === 'generic' ? 'pick_template' : pendingChoices.kind, slot: pendingChoices.slot },
+      }
+    },
+    [pendingChoices],
+  )
+
+  const sendInternal = useCallback(
+    async (
+      text: string,
+      opts?: {
+        displayText?: string
+        pickedFrom?: { kind: 'pick_template' | 'pick_warga'; choiceId: string }
+      },
+    ) => {
       const userText = text.trim()
       if (!userText) return
       if (!creds) {
@@ -67,20 +111,27 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
 
       setError(null)
 
-      // Off-topic guard — short-circuit without hitting AI.
+      // Off-topic guard
       if (isLikelyOffTopic(userText)) {
         setMessages((prev) => [
           ...prev,
-          { uiId: uuid(), role: 'user', content: userText },
+          { uiId: uuid(), role: 'user', content: opts?.displayText || userText },
           { uiId: uuid(), role: 'assistant', content: OFF_TOPIC_REPLY },
         ])
         return
       }
 
-      const userMsg: UIMessage = { uiId: uuid(), role: 'user', content: userText }
+      const userMsg: UIMessage = {
+        uiId: uuid(),
+        role: 'user',
+        content: opts?.displayText || userText,
+        pickedFrom: opts?.pickedFrom,
+      }
       const placeholderMsg: UIMessage = { uiId: uuid(), role: 'assistant', content: '' }
 
       setMessages((prev) => [...prev, userMsg, placeholderMsg])
+      // Once user sends another message, prior pending choices are no longer the latest.
+      setPendingChoices(null)
       setBusy(true)
 
       const controller = new AbortController()
@@ -91,12 +142,13 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
           { role: 'system', content: CHAT_LETTER_SYSTEM_PROMPT },
           ...messages
             .filter((m) => m.role !== 'system')
-            .map(({ uiId: _id, ...rest }) => rest as AIChatMessage),
+            .map(({ uiId: _id, quickReplies: _qr, status: _st, pickedFrom: _pf, ...rest }) => rest as AIChatMessage),
           { role: 'user', content: userText },
         ]
 
         let working: AIChatMessage[] = baseHistory
         let assistantUiId = placeholderMsg.uiId
+        let latestQuickReplies: AIQuickReplies | null = null
 
         for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
           let streamingText = ''
@@ -144,13 +196,28 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
               name: tc.function.name,
             }
             working = [...working, toolMsg]
-            setMessages((prev) => [...prev, { ...toolMsg, uiId: uuid() }])
+            const uiToolMsg: UIMessage = {
+              ...toolMsg,
+              uiId: uuid(),
+              quickReplies: result.raw?.quickReplies,
+              status: result.raw?.status,
+            }
+            setMessages((prev) => [...prev, uiToolMsg])
+            if (result.raw?.quickReplies && result.raw.quickReplies.choices.length > 0) {
+              latestQuickReplies = result.raw.quickReplies
+            }
+            if (result.raw?.status) {
+              setStatus(result.raw.status)
+            }
           }
 
           const nextId = uuid()
           assistantUiId = nextId
           setMessages((prev) => [...prev, { uiId: nextId, role: 'assistant', content: '' }])
         }
+
+        // Set pendingChoices to the most recent batch from the entire round
+        setPendingChoices(latestQuickReplies)
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Gagal menghubungi AI'
         setError(msg)
@@ -172,5 +239,43 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
     [creds, busy, messages, options.toolContext],
   )
 
-  return { messages, busy, error, send, reset, abort }
+  const send = useCallback(
+    async (text: string) => {
+      // Numeric fallback: if user types "1" / "2" while choices pending, translate
+      const intercepted = interceptNumericReply(text)
+      if (intercepted.kind === 'choice' && intercepted.choice && intercepted.meta) {
+        await sendInternal(intercepted.payload, {
+          displayText: `Saya pilih: ${intercepted.choice.primary}`,
+          pickedFrom: { kind: intercepted.meta.kind, choiceId: intercepted.choice.id },
+        })
+        return
+      }
+      await sendInternal(text)
+    },
+    [interceptNumericReply, sendInternal],
+  )
+
+  const pickChoice = useCallback(
+    async (choice: AIChoice, kind: AIQuickReplies['kind'], slot?: number) => {
+      const payload = structuredChoiceMessage(choice, kind, slot)
+      await sendInternal(payload, {
+        displayText: `Saya pilih: ${choice.primary}`,
+        pickedFrom: kind === 'generic' ? undefined : { kind, choiceId: choice.id },
+      })
+    },
+    [sendInternal],
+  )
+
+  return { messages, busy, error, send, pickChoice, reset, abort, status, pendingChoices }
+}
+
+function structuredChoiceMessage(choice: AIChoice, kind: AIQuickReplies['kind'], slot?: number): string {
+  if (kind === 'pick_template') {
+    return `Saya pilih template: ${choice.primary} (id: ${choice.id})`
+  }
+  if (kind === 'pick_warga') {
+    const slotPart = slot ? ` untuk slot W${slot}` : ''
+    return `Saya pilih warga${slotPart}: ${choice.primary} (id: ${choice.id})`
+  }
+  return `Saya pilih: ${choice.primary}`
 }

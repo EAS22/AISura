@@ -88,3 +88,60 @@ export interface AIChatCompletionResponse {
   finishReason: 'stop' | 'tool_calls' | 'length' | 'content_filter' | string
   usage?: { prompt: number; completion: number; total: number }
 }
+
+// =================================================================
+// Quick reply / structured UI payloads (host-side only — never sent to AI)
+// =================================================================
+
+/**
+ * Rich choice card displayed below a tool message. Click sends a
+ * structured user message back into the conversation.
+ */
+export interface AIChoice {
+  /** Stable id (warga id, template id, etc.) */
+  id: string
+  /** Bold first-line label, e.g. nama warga or nama template. */
+  primary: string
+  /** Optional subtitle line — masked NIK + L/P + umur, or template description. */
+  secondary?: string
+  /** Optional third line — alamat singkat, dll. */
+  tertiary?: string
+  /** Optional badges row — small pill tags. */
+  badges?: string[]
+  /** Full hover/tooltip text (e.g. alamat lengkap that gets truncated). */
+  fullText?: string
+}
+
+/** Kind of follow-up action that should fire when user picks a choice. */
+export type AIChoiceKind = 'pick_template' | 'pick_warga' | 'generic'
+
+export interface AIQuickReplies {
+  kind: AIChoiceKind
+  /** Heading shown above the choice list. */
+  prompt?: string
+  /** Optional slot number when kind === 'pick_warga'. */
+  slot?: number
+  choices: AIChoice[]
+  /** When true, host should hint the user to refine query (>5 ambiguous). */
+  needsRefine?: boolean
+}
+
+/**
+ * Status snapshot of the in-progress letter. Rendered as a sticky
+ * panel in the AI drawer, with a "Preview Surat" button when ready.
+ */
+export interface AILetterStatus {
+  templateId: string
+  templateName: string
+  /** Slot info for warga assignments. */
+  slots: { slot: number; nama?: string }[]
+  /** Custom tokens still empty. */
+  missingCustom: string[]
+  /** Which date will be used (string display). */
+  defaultDate: string
+  /** Preview of the next nomor surat. */
+  nomorPreview: string
+  readyToPreview: boolean
+  /** Resolved values map for preview when readyToPreview is true. */
+  values?: Record<string, string>
+}

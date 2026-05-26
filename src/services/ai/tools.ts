@@ -5,9 +5,20 @@
 //   1. Template surat mana yang akan dibuat
 //   2. Warga mana untuk tiap slot W1, W2, ... yang dibutuhkan template
 // Semua sisanya (tanggal, nomor surat, kepala desa, data desa) di-resolve
-// otomatis lewat prepare_letter / preview_letter — AI tidak perlu nanya.
+// otomatis lewat prepare_letter — AI tidak perlu nanya.
+//
+// Tool results carry both:
+// - `content`: stringified payload sent to the AI (textual hints only)
+// - `raw`: structured payload consumed by the host UI (choice cards,
+//   status panel, preview button). Never serialized into the model's
+//   conversation history.
 
-import type { AIToolDefinition } from './types'
+import type {
+  AIChoice,
+  AILetterStatus,
+  AIQuickReplies,
+  AIToolDefinition,
+} from './types'
 import {
   buildPreparedLetter,
   listTemplatesForAI,
@@ -16,16 +27,6 @@ import {
 import { getTemplateById } from '../templateService'
 
 export interface ToolContext {
-  /**
-   * Called when the model invokes preview_letter. The host UI listens to
-   * this and opens the preview modal with the supplied template + values.
-   * Returns a short status string fed back to the model.
-   */
-  onPreviewLetter?: (input: {
-    templateId: string
-    templateName: string
-    values: Record<string, string>
-  }) => Promise<string> | string
   /**
    * Notify host UI that a warga slot has been assigned (for breadcrumb display).
    */
@@ -36,8 +37,13 @@ export interface ToolExecutionResult {
   ok: boolean
   /** Stringified payload sent back to the model. */
   content: string
-  /** Optional raw object retained for the host UI. */
-  raw?: unknown
+  /** Structured payload retained for the host UI. Not sent to the model. */
+  raw?: ToolRawPayload
+}
+
+export interface ToolRawPayload {
+  quickReplies?: AIQuickReplies
+  status?: AILetterStatus
 }
 
 type ToolHandler = (args: unknown, ctx: ToolContext, session: SessionState) => Promise<ToolExecutionResult>
@@ -53,13 +59,16 @@ export interface SessionState {
   /** key W1, W2, ... → wargaId */
   wargaSlots: Record<string, string>
   customValues: Record<string, string>
+  /** Cache per-tool results so UI can reconstruct quick replies / status. */
+  lastChoices?: AIQuickReplies
+  lastStatus?: AILetterStatus
 }
 
 export function createSessionState(): SessionState {
   return { wargaSlots: {}, customValues: {} }
 }
 
-function ok(payload: unknown, raw?: unknown): ToolExecutionResult {
+function ok(payload: unknown, raw?: ToolRawPayload): ToolExecutionResult {
   return {
     ok: true,
     content: typeof payload === 'string' ? payload : JSON.stringify(payload),
@@ -82,13 +91,39 @@ const TOOLS: RegisteredTool[] = [
       type: 'function',
       function: {
         name: 'list_templates',
-        description: 'Daftar semua template surat yang tersedia. Pakai untuk membantu user memilih template.',
+        description: 'Daftar semua template surat yang tersedia. Pakai untuk membantu user memilih template. Hasilnya akan ditampilkan sebagai kartu pilihan ke user — TIDAK perlu Anda menulis ulang daftarnya di chat.',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
       },
     },
-    handler: async () => {
+    handler: async (_args, _ctx, session) => {
       const templates = await listTemplatesForAI()
-      return ok({ templates })
+      const choices: AIChoice[] = templates.map((t) => ({
+        id: t.id,
+        primary: t.nama,
+        secondary: t.deskripsi || undefined,
+        badges: [
+          t.prefix_surat ? `Prefix: ${t.prefix_surat}` : undefined,
+          t.warga_count > 0 ? `${t.warga_count} slot warga` : 'Tanpa slot warga',
+        ].filter(Boolean) as string[],
+      }))
+      const quickReplies: AIQuickReplies = {
+        kind: 'pick_template',
+        prompt: choices.length === 0
+          ? 'Belum ada template tersimpan.'
+          : 'Pilih template dari kartu di bawah:',
+        choices,
+      }
+      session.lastChoices = quickReplies
+      // Hint kept short to discourage AI from re-listing all templates.
+      return ok(
+        {
+          count: templates.length,
+          hint: choices.length === 0
+            ? 'Tidak ada template. Beritahu user untuk upload template lewat halaman Template Surat dulu.'
+            : 'UI sudah menampilkan kartu pilihan template. Cukup minta user pilih (1 kalimat singkat). Jangan ulangi daftar.',
+        },
+        { quickReplies },
+      )
     },
   },
   {
@@ -97,7 +132,7 @@ const TOOLS: RegisteredTool[] = [
       function: {
         name: 'select_template',
         description:
-          'Set template aktif untuk sesi ini. Setelah dipanggil, gunakan prepare_letter untuk lihat berapa slot warga yang perlu diisi. Tidak perlu konfirmasi tanggal/nomor surat — semua otomatis.',
+          'Set template aktif untuk sesi ini. Setelah dipanggil, gunakan prepare_letter untuk lihat berapa slot warga yang perlu diisi.',
         parameters: {
           type: 'object',
           properties: { id: { type: 'string', description: 'Template id dari list_templates' } },
@@ -113,14 +148,22 @@ const TOOLS: RegisteredTool[] = [
       const t = await getTemplateById(id)
       if (!t) return fail('Template tidak ditemukan')
       session.templateId = id
-      session.wargaSlots = {} // reset slot saat ganti template
+      session.wargaSlots = {}
       session.customValues = {}
-      return ok({
-        templateId: id,
-        nama: t.nama,
-        warga_count: t.warga_count,
-        message: `Template "${t.nama}" dipilih. Lanjut panggil prepare_letter untuk melihat slot warga yang perlu diisi.`,
-      })
+      session.lastChoices = undefined
+      // Pre-build status snapshot for UI panel
+      const prepared = await buildPreparedLetter({ templateId: id })
+      const status = preparedToStatus(prepared)
+      session.lastStatus = status
+      return ok(
+        {
+          templateId: id,
+          nama: t.nama,
+          warga_count: t.warga_count,
+          message: `Template "${t.nama}" dipilih. Lanjut panggil prepare_letter atau langsung tanyakan warga untuk slot pertama.`,
+        },
+        { status },
+      )
     },
   },
   {
@@ -129,11 +172,12 @@ const TOOLS: RegisteredTool[] = [
       function: {
         name: 'search_warga',
         description:
-          'Cari warga berdasarkan nama atau bagian NIK. NIK lengkap di-mask agar tidak terlihat AI sampai user konfirmasi pilihan via assign_warga.',
+          'Cari warga berdasarkan nama atau bagian NIK. Hasil ditampilkan sebagai kartu pilihan dengan nama, NIK masked, umur, dan alamat — TIDAK perlu Anda menulis ulang daftarnya di chat.',
         parameters: {
           type: 'object',
           properties: {
             query: { type: 'string', minLength: 2 },
+            slot: { type: 'number', description: 'Nomor slot warga yang sedang dicari (W1, W2, ...). Wajib jika sedang mengisi slot tertentu.' },
             limit: { type: 'number', description: 'Maks hasil (default 5)' },
           },
           required: ['query'],
@@ -141,16 +185,57 @@ const TOOLS: RegisteredTool[] = [
         },
       },
     },
-    handler: async (args) => {
+    handler: async (args, _ctx, session) => {
       const a = asObject(args)
       const query = typeof a.query === 'string' ? a.query.trim() : ''
       if (query.length < 2) return fail('Query minimal 2 karakter')
       const limit = typeof a.limit === 'number' && a.limit > 0 && a.limit <= 10 ? a.limit : 5
+      const slotArg = typeof a.slot === 'number' && a.slot >= 1 ? Math.floor(a.slot) : undefined
       const results = await searchWargaForAI(query, limit)
-      return ok({
-        note: 'NIK sudah di-mask. Untuk assign warga ke slot, panggil assign_warga dengan id-nya.',
-        results,
-      }, results)
+
+      const choices: AIChoice[] = results.map((w) => {
+        const ageText = w.umur ? `${w.umur} thn` : ''
+        const jkText = w.jenis_kelamin === 'Laki-laki' ? 'L' : w.jenis_kelamin === 'Perempuan' ? 'P' : ''
+        const subParts = [
+          `NIK ${w.nik_masked}`,
+          jkText,
+          ageText,
+        ].filter(Boolean)
+        const alamatShort = w.alamat
+          ? (w.alamat.length > 36 ? `${w.alamat.slice(0, 36)}…` : w.alamat)
+          : ''
+        return {
+          id: w.id,
+          primary: w.nama,
+          secondary: subParts.join(' · '),
+          tertiary: alamatShort ? `${alamatShort}  ${w.rt_rw}` : w.rt_rw,
+          fullText: w.alamat ? `${w.alamat} RT/RW ${w.rt_rw}` : undefined,
+        }
+      })
+
+      const quickReplies: AIQuickReplies = {
+        kind: 'pick_warga',
+        slot: slotArg,
+        prompt: choices.length === 0
+          ? 'Tidak ditemukan warga yang cocok.'
+          : `Pilih warga ${slotArg ? `untuk slot W${slotArg}` : ''} dari kartu di bawah:`.trim(),
+        choices,
+        needsRefine: choices.length >= limit,
+      }
+      session.lastChoices = quickReplies
+
+      return ok(
+        {
+          count: results.length,
+          hint:
+            results.length === 0
+              ? 'Tidak ada hasil. Sarankan user ketik nama yang berbeda atau lebih pendek.'
+              : results.length >= limit
+                ? `Hasil banyak (>${limit}). UI sudah menampilkan kartu pilihan. Sarankan user pilih, atau ketik nama lebih spesifik.`
+                : 'UI sudah menampilkan kartu pilihan warga. Cukup tulis 1 kalimat instruksi singkat. Jangan ulangi daftar.',
+        },
+        { quickReplies },
+      )
     },
   },
   {
@@ -159,7 +244,7 @@ const TOOLS: RegisteredTool[] = [
       function: {
         name: 'assign_warga',
         description:
-          'Assign warga (id dari search_warga) ke slot Wn (W1, W2, ...). Slot pertama W1 selalu untuk pemohon utama. Setelah semua slot terisi, panggil preview_letter.',
+          'Assign warga (id dari search_warga) ke slot Wn (W1, W2, ...). Slot pertama W1 selalu untuk pemohon utama. Setelah semua slot terisi, panggil prepare_letter — UI akan menampilkan tombol Preview Surat.',
         parameters: {
           type: 'object',
           properties: {
@@ -180,8 +265,8 @@ const TOOLS: RegisteredTool[] = [
       if (!session.templateId) return fail('Belum ada template aktif. Panggil select_template dulu.')
 
       session.wargaSlots[`W${slot}`] = wargaId
+      session.lastChoices = undefined
 
-      // Verify by re-running the resolver so we know if assignment is valid
       const prepared = await buildPreparedLetter({
         templateId: session.templateId,
         wargaSlots: session.wargaSlots,
@@ -191,12 +276,18 @@ const TOOLS: RegisteredTool[] = [
       if (slotInfo?.warga_id && slotInfo.nama) {
         ctx.onSlotAssigned?.({ slot, wargaId: slotInfo.warga_id, nama: slotInfo.nama })
       }
-      return ok({
-        slot,
-        nama: slotInfo?.nama,
-        remainingSlots: prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot),
-        missingCustom: prepared.missing.custom,
-      })
+      const status = preparedToStatus(prepared)
+      session.lastStatus = status
+      return ok(
+        {
+          slot,
+          nama: slotInfo?.nama,
+          remainingSlots: prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot),
+          missingCustom: prepared.missing.custom,
+          readyToPreview: status.readyToPreview,
+        },
+        { status },
+      )
     },
   },
   {
@@ -223,6 +314,18 @@ const TOOLS: RegisteredTool[] = [
       const value = typeof a.value === 'string' ? a.value : ''
       if (!token) return fail('token wajib diisi')
       session.customValues[token] = value
+
+      // Recompute status if template aktif
+      if (session.templateId) {
+        const prepared = await buildPreparedLetter({
+          templateId: session.templateId,
+          wargaSlots: session.wargaSlots,
+          customValues: session.customValues,
+        })
+        const status = preparedToStatus(prepared)
+        session.lastStatus = status
+        return ok({ token, value, readyToPreview: status.readyToPreview }, { status })
+      }
       return ok({ token, value })
     },
   },
@@ -232,7 +335,7 @@ const TOOLS: RegisteredTool[] = [
       function: {
         name: 'prepare_letter',
         description:
-          'Hitung status pengisian template aktif: berapa slot warga sudah/belum, apakah ada custom kosong, dan apa preview default-nya. Tanggal otomatis hari ini, nomor otomatis dari config, kepala desa otomatis sebagai penandatangan. Panggil setelah select_template untuk tahu apa yang perlu ditanya ke user.',
+          'Hitung status pengisian template aktif: berapa slot warga sudah/belum, custom token yang kosong, dan apakah surat sudah readyToPreview. Tanggal otomatis hari ini, nomor otomatis dari config, kepala desa otomatis sebagai penandatangan. UI akan menampilkan tombol Preview Surat ketika ready — Anda TIDAK perlu lagi memanggil tool preview, user akan klik tombol secara manual.',
         parameters: { type: 'object', properties: {}, additionalProperties: false },
       },
     },
@@ -243,57 +346,41 @@ const TOOLS: RegisteredTool[] = [
         wargaSlots: session.wargaSlots,
         customValues: session.customValues,
       })
-      return ok({
-        template: { id: prepared.template.id, nama: prepared.template.nama, warga_count: prepared.template.warga_count },
-        wargaSlots: prepared.wargaSlots,
-        missingWargaSlots: prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot),
-        missingCustom: prepared.missing.custom,
-        defaultDate: prepared.defaultDate,
-        nomorPreview: prepared.nomorPreview['NOMOR_SURAT'] || '',
-        readyToPreview:
-          prepared.missing.warga.every((m) => prepared.wargaSlots.find((s) => s.slot === m.slot)?.warga_id) &&
-          prepared.missing.custom.length === 0,
-      })
-    },
-  },
-  {
-    definition: {
-      type: 'function',
-      function: {
-        name: 'preview_letter',
-        description:
-          'Buka modal preview surat dengan semua data otomatis (tanggal hari ini, nomor surat dari config, kepala desa sebagai penandatangan) + warga & custom yang sudah di-set. Hanya panggil ketika prepare_letter mengembalikan readyToPreview=true.',
-        parameters: { type: 'object', properties: {}, additionalProperties: false },
-      },
-    },
-    handler: async (_args, ctx, session) => {
-      if (!session.templateId) return fail('Belum ada template aktif. Panggil select_template dulu.')
-      const prepared = await buildPreparedLetter({
-        templateId: session.templateId,
-        wargaSlots: session.wargaSlots,
-        customValues: session.customValues,
-      })
-
-      // Block preview if anything required is still empty
-      const missingSlots = prepared.wargaSlots.filter((s) => !s.warga_id).map((s) => s.slot)
-      if (missingSlots.length > 0) {
-        return fail(`Slot warga belum lengkap: ${missingSlots.map((s) => `W${s}`).join(', ')}`)
-      }
-      if (prepared.missing.custom.length > 0) {
-        return fail(`Custom token kosong: ${prepared.missing.custom.join(', ')}`)
-      }
-
-      const status = ctx.onPreviewLetter
-        ? await ctx.onPreviewLetter({
-            templateId: prepared.template.id,
-            templateName: prepared.template.nama,
-            values: prepared.values,
-          })
-        : 'Preview tidak tersedia.'
-      return ok({ status, nomorSurat: prepared.nomorPreview['NOMOR_SURAT'] || '', tanggal: prepared.defaultDate })
+      const status = preparedToStatus(prepared)
+      session.lastStatus = status
+      return ok(
+        {
+          template: { id: prepared.template.id, nama: prepared.template.nama, warga_count: prepared.template.warga_count },
+          missingWargaSlots: status.slots.filter((s) => !s.nama).map((s) => s.slot),
+          missingCustom: status.missingCustom,
+          defaultDate: status.defaultDate,
+          nomorPreview: status.nomorPreview,
+          readyToPreview: status.readyToPreview,
+          hint: status.readyToPreview
+            ? 'Surat siap. UI sudah menampilkan tombol "Preview Surat" — minta user klik tombol tersebut.'
+            : 'Masih ada data yang kosong. Lanjut tanyakan slot/custom yang missing.',
+        },
+        { status },
+      )
     },
   },
 ]
+
+function preparedToStatus(prepared: Awaited<ReturnType<typeof buildPreparedLetter>>): AILetterStatus {
+  const slots = prepared.wargaSlots.map((s) => ({ slot: s.slot, nama: s.nama }))
+  const missingSlots = slots.filter((s) => !s.nama)
+  const ready = missingSlots.length === 0 && prepared.missing.custom.length === 0
+  return {
+    templateId: prepared.template.id,
+    templateName: prepared.template.nama,
+    slots,
+    missingCustom: prepared.missing.custom,
+    defaultDate: prepared.defaultDate,
+    nomorPreview: prepared.nomorPreview['NOMOR_SURAT'] || '',
+    readyToPreview: ready,
+    values: ready ? prepared.values : undefined,
+  }
+}
 
 export const TOOL_DEFINITIONS: AIToolDefinition[] = TOOLS.map((t) => t.definition)
 

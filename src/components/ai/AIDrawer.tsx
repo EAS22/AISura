@@ -7,7 +7,9 @@ import { Sparkles, Send, RefreshCw, StopCircle, FileSearch, ShieldAlert } from '
 import { useAI } from '@/contexts/AIContext'
 import { useNavigationContext } from '@/lib/router'
 import { MessageBubble } from './MessageBubble'
-import { useAIChat } from './useAIChat'
+import { ChoiceCardList } from './ChoiceCard'
+import { StatusPanel } from './StatusPanel'
+import { useAIChat, type UIMessage } from './useAIChat'
 import { TemplateSuggesterPanel } from './TemplateSuggesterPanel'
 import { LetterPreviewBridge, useLetterPreviewBridge } from './LetterPreviewBridge'
 
@@ -50,7 +52,7 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
             <ShieldAlert className="h-10 w-10 text-amber-500" />
             <p className="text-sm font-medium">Fitur AI belum aktif</p>
             <p className="max-w-xs text-xs text-muted-foreground">
-              Aktifkan dulu di Pengaturan, atau pakai default key bawaan AISura.
+              Aktifkan dulu di Pengaturan, lalu isi kredensial provider AI Anda.
             </p>
             <Button
               size="sm"
@@ -100,23 +102,14 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const toolContext = useMemo(
-    () => ({
-      onPreviewLetter: async (input: { templateId: string; templateName: string; values: Record<string, string> }) => {
-        await previewBridge.requestPreview(input)
-        return 'Preview surat telah dibuka untuk dilihat oleh user.'
-      },
-    }),
-    [previewBridge],
-  )
-
+  const toolContext = useMemo(() => ({}), [])
   const chat = useAIChat(ai.credentials, { toolContext })
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
-  }, [chat.messages])
+  }, [chat.messages, chat.status])
 
   // Auto-resize textarea: grow from min (2 lines) up to max (7 lines), scroll past that.
   useEffect(() => {
@@ -149,21 +142,49 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
     }
   }
 
+  const handlePreview = async () => {
+    if (!chat.status || !chat.status.values) return
+    await previewBridge.requestPreview({
+      templateId: chat.status.templateId,
+      templateName: chat.status.templateName,
+      values: chat.status.values,
+    })
+  }
+
+  // Determine which tool message holds the latest pending choices, so only that
+  // ChoiceCardList renders interactive (older ones disabled).
+  const latestPendingChoiceMsgId = useMemo(() => {
+    if (!chat.pendingChoices) return null
+    for (let i = chat.messages.length - 1; i >= 0; i--) {
+      const m = chat.messages[i]
+      if (m.role === 'tool' && m.quickReplies && m.quickReplies.choices.length > 0) {
+        return m.uiId
+      }
+    }
+    return null
+  }, [chat.messages, chat.pendingChoices])
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       <div ref={scrollRef} className="flex-1 min-h-0 space-y-3 overflow-y-auto px-5 py-4">
         {chat.messages.length === 0 ? (
-          <ChatEmptyState
-            onPick={(prompt) => setInput(prompt)}
-          />
+          <ChatEmptyState onPick={(prompt) => setInput(prompt)} />
         ) : (
-          chat.messages.map((m, idx) => (
-            <MessageBubble
-              key={m.uiId}
-              message={m}
-              isStreaming={chat.busy && idx === chat.messages.length - 1 && m.role === 'assistant'}
-            />
-          ))
+          <ChatHistory
+            messages={chat.messages}
+            busy={chat.busy}
+            latestPendingChoiceMsgId={latestPendingChoiceMsgId}
+            onPickChoice={chat.pickChoice}
+          />
+        )}
+
+        {/* Sticky-ish status panel rendered after chat history when active */}
+        {chat.status && (
+          <StatusPanel
+            status={chat.status}
+            onPreview={handlePreview}
+            busy={previewBridge.loading}
+          />
         )}
       </div>
 
@@ -206,6 +227,62 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+interface ChatHistoryProps {
+  messages: UIMessage[]
+  busy: boolean
+  latestPendingChoiceMsgId: string | null
+  onPickChoice: ReturnType<typeof useAIChat>['pickChoice']
+}
+
+function ChatHistory({ messages, busy, latestPendingChoiceMsgId, onPickChoice }: ChatHistoryProps) {
+  // For each assistant message, determine whether it follows a tool message
+  // that produced choices — used to auto-collapse redundant lists.
+  return (
+    <>
+      {messages.map((m, idx) => {
+        const isLastAssistantStreaming =
+          busy && idx === messages.length - 1 && m.role === 'assistant'
+
+        // Did the previous tool message yield choices?
+        const hasChoicesAbove = (() => {
+          if (m.role !== 'assistant') return false
+          for (let i = idx - 1; i >= 0; i--) {
+            const prev = messages[i]
+            if (prev.role === 'tool') {
+              return !!(prev.quickReplies && prev.quickReplies.choices.length > 0)
+            }
+            if (prev.role === 'user') return false
+          }
+          return false
+        })()
+
+        if (m.role === 'tool' && m.quickReplies && m.quickReplies.choices.length > 0) {
+          const isActive = m.uiId === latestPendingChoiceMsgId && !busy
+          return (
+            <div key={m.uiId} className="space-y-2">
+              <MessageBubble message={m} />
+              <ChoiceCardList
+                quickReplies={m.quickReplies}
+                active={isActive}
+                onPick={(c) => onPickChoice(c, m.quickReplies!.kind, m.quickReplies!.slot)}
+              />
+            </div>
+          )
+        }
+
+        return (
+          <MessageBubble
+            key={m.uiId}
+            message={m}
+            isStreaming={isLastAssistantStreaming}
+            hasChoicesAbove={hasChoicesAbove}
+          />
+        )
+      })}
+    </>
   )
 }
 

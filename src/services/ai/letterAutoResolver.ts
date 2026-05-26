@@ -364,7 +364,7 @@ export async function buildPreparedLetter(input: BuildPreparedLetterInput): Prom
 }
 
 /** Simple search wrapper to expose just a few fields the AI tool needs. */
-export async function searchWargaForAI(query: string, limit = 5): Promise<{ id: string; nama: string; nik_masked: string; rt_rw: string; alamat: string }[]> {
+export async function searchWargaForAI(query: string, limit = 5): Promise<{ id: string; nama: string; nik_masked: string; rt_rw: string; alamat: string; jenis_kelamin: string; umur: string }[]> {
   const results = await searchWarga(query, limit)
   return results.map((w) => ({
     id: w.id,
@@ -375,6 +375,8 @@ export async function searchWargaForAI(query: string, limit = 5): Promise<{ id: 
         : (w.nik || '').replace(/./g, '*'),
     rt_rw: `${(w.rt || '').padStart(3, '0')}/${(w.rw || '').padStart(3, '0')}`,
     alamat: w.alamat || '',
+    jenis_kelamin: w.jenis_kelamin || '',
+    umur: computeUmur(w.tanggal_lahir),
   }))
 }
 
