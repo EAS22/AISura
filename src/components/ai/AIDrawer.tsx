@@ -98,6 +98,7 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
   const ai = useAI()
   const [input, setInput] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
   const toolContext = useMemo(
     () => ({
@@ -116,6 +117,23 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [chat.messages])
+
+  // Auto-resize textarea: grow from min (2 lines) up to max (7 lines), scroll past that.
+  useEffect(() => {
+    const ta = inputRef.current
+    if (!ta) return
+    const styles = window.getComputedStyle(ta)
+    const lineHeight = parseFloat(styles.lineHeight) || 20
+    const paddingY = parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom)
+    const borderY = parseFloat(styles.borderTopWidth) + parseFloat(styles.borderBottomWidth)
+    const minHeight = lineHeight * 2 + paddingY + borderY
+    const maxHeight = lineHeight * 7 + paddingY + borderY
+
+    ta.style.height = 'auto'
+    const next = Math.min(Math.max(ta.scrollHeight, minHeight), maxHeight)
+    ta.style.height = `${next}px`
+    ta.style.overflowY = ta.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [input])
 
   const submit = async () => {
     const text = input.trim()
@@ -158,11 +176,13 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
       <div className="border-t border-white/40 px-5 py-3 dark:border-white/10">
         <div className="flex items-end gap-2">
           <Textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder="Contoh: Buatkan surat keterangan domisili untuk Pak Sena…"
-            className="min-h-9 max-h-32 resize-none"
+            rows={2}
+            className="resize-none leading-6"
             disabled={chat.busy}
           />
           {chat.busy ? (

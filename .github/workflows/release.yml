@@ -36,6 +36,7 @@ jobs:
       - name: Build Windows NSIS bundle
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          AISURA_DEFAULT_AI_KEY: ${{ secrets.AISURA_DEFAULT_AI_KEY }}
         run: npm run tauri build -- --bundles nsis
 
       - name: Read app version
