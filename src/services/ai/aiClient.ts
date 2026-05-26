@@ -35,6 +35,86 @@ function buildUrl(baseUrl: string, path: string): string {
   return `${base}${p}`
 }
 
+/**
+ * List available models from an OpenAI-compatible endpoint.
+ * Returns an array of model id strings sorted alphabetically.
+ */
+export async function listModels(
+  baseUrl: string,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<string[]> {
+  const trimmedBase = baseUrl.trim()
+  if (!trimmedBase) throw makeError('Base URL kosong', {})
+  const url = buildUrl(trimmedBase, '/models')
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      signal,
+      headers: {
+        Accept: 'application/json',
+        ...(apiKey.trim() ? { Authorization: `Bearer ${apiKey.trim()}` } : {}),
+      },
+    })
+  } catch {
+    throw makeError(
+      `Tidak dapat menghubungi ${trimmedBase}. Cek koneksi atau alamat endpoint.`,
+      { isNetwork: true },
+    )
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    const isAuth = res.status === 401 || res.status === 403
+    const isRateLimit = res.status === 429
+    const human = isAuth
+      ? 'API key ditolak (401/403).'
+      : isRateLimit
+        ? 'Rate limit tercapai saat fetch model.'
+        : `Provider mengembalikan error ${res.status} saat fetch model.`
+    throw makeError(human, { status: res.status, body: text, isAuth, isRateLimit })
+  }
+
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch {
+    throw makeError('Respons /models bukan JSON yang valid.', {})
+  }
+  // OpenAI-compatible spec: { data: [{ id: string }, ...] }
+  // Some providers (Ollama) return { data: [...] } as well, but field may be 'name'.
+  if (data && typeof data === 'object' && 'data' in data) {
+    const arr = (data as { data: unknown }).data
+    if (Array.isArray(arr)) {
+      const ids = arr
+        .map((m) => {
+          if (m && typeof m === 'object') {
+            const obj = m as Record<string, unknown>
+            if (typeof obj.id === 'string') return obj.id
+            if (typeof obj.name === 'string') return obj.name
+          }
+          return ''
+        })
+        .filter((s) => s.length > 0)
+      return Array.from(new Set(ids)).sort((a, b) => a.localeCompare(b))
+    }
+  }
+  // Some servers (Ollama legacy) return { models: [{ name }, ...] }
+  if (data && typeof data === 'object' && 'models' in data) {
+    const arr = (data as { models: unknown }).models
+    if (Array.isArray(arr)) {
+      const ids = arr
+        .map((m) => (m && typeof m === 'object' && typeof (m as Record<string, unknown>).name === 'string'
+          ? ((m as Record<string, unknown>).name as string)
+          : ''))
+        .filter((s) => s.length > 0)
+      return Array.from(new Set(ids)).sort((a, b) => a.localeCompare(b))
+    }
+  }
+  return []
+}
+
 /** Non-streaming chat completion. Returns parsed assistant message. */
 export async function chatCompletion(
   creds: AIResolvedCredentials,

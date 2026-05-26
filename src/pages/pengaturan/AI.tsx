@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PasswordInput } from '@/components/password-input'
-import { Sparkles, ShieldCheck, ShieldAlert, RefreshCw, Plug, KeyRound, Globe2, Cpu } from 'lucide-react'
+import { Sparkles, ShieldCheck, ShieldAlert, RefreshCw, Plug, KeyRound, Globe2, Cpu, ListRestart, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
 import {
@@ -16,6 +16,7 @@ import {
   hasDefaultKey,
   DEFAULT_AI_BASE_URL,
   DEFAULT_AI_MODEL,
+  listModels,
   resolveCredentials,
   saveAIConfig,
   testAIConnection,
@@ -38,6 +39,11 @@ export function AIPage() {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [fetchingModels, setFetchingModels] = useState(false)
+  const [fetchedModels, setFetchedModels] = useState<string[]>([])
+  const [fetchModelsError, setFetchModelsError] = useState<string | null>(null)
+  const [modelSearch, setModelSearch] = useState('')
+  const [modelPickerOpen, setModelPickerOpen] = useState(false)
 
   useEffect(() => {
     if (!config) return
@@ -60,7 +66,40 @@ export function AIPage() {
     const p = getProviderPreset(next)
     if (!baseUrl || baseUrl !== p.baseUrl) setBaseUrl(p.baseUrl)
     if (!model) setModel(p.defaultModel)
+    // Reset fetched model list since provider berubah
+    setFetchedModels([])
+    setFetchModelsError(null)
   }
+
+  const handleFetchModels = async () => {
+    setFetchingModels(true)
+    setFetchModelsError(null)
+    setFetchedModels([])
+    try {
+      const url = (baseUrl || preset.baseUrl).trim()
+      if (!url) {
+        setFetchModelsError('Base URL kosong')
+        return
+      }
+      const models = await listModels(url, apiKey)
+      if (models.length === 0) {
+        setFetchModelsError('Provider tidak mengembalikan daftar model.')
+        return
+      }
+      setFetchedModels(models)
+      setModelPickerOpen(true)
+    } catch (err) {
+      setFetchModelsError(err instanceof Error ? err.message : 'Gagal fetch model')
+    } finally {
+      setFetchingModels(false)
+    }
+  }
+
+  const filteredFetchedModels = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase()
+    if (!q) return fetchedModels
+    return fetchedModels.filter((m) => m.toLowerCase().includes(q))
+  }, [fetchedModels, modelSearch])
 
   const handleTest = async () => {
     setTesting(true)
@@ -173,9 +212,6 @@ export function AIPage() {
               langkah-demi-langkah. AI tidak bisa mengubah data warga atau template, hanya membaca lewat tool yang sudah dibatasi.
             </p>
             <div className="flex flex-wrap items-center gap-2">
-              <Badge className="rounded-full bg-blue-50 text-blue-700 hover:bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300">
-                Default: {DEFAULT_AI_MODEL}
-              </Badge>
               <Badge variant="outline" className="rounded-full">{defaultAvailable ? 'Default key aktif' : 'Default key tidak ter-embed'}</Badge>
               <Badge variant="outline" className="rounded-full">{enabled ? 'Aktif' : 'Nonaktif'}</Badge>
             </div>
@@ -184,14 +220,29 @@ export function AIPage() {
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <Label htmlFor="ai-enabled" className="text-sm font-semibold">Aktifkan fitur AI</Label>
-                <p className="text-xs text-muted-foreground">Drawer AI akan muncul di header.</p>
+                <p className="text-xs text-muted-foreground">
+                  {acknowledged
+                    ? 'Drawer AI akan muncul di header.'
+                    : 'Centang persetujuan privasi di bawah dulu.'}
+                </p>
               </div>
-              <Switch id="ai-enabled" checked={enabled} onCheckedChange={setEnabled} />
+              <Switch
+                id="ai-enabled"
+                checked={enabled}
+                onCheckedChange={(v) => {
+                  if (v && !acknowledged) {
+                    setTestResult({ ok: false, msg: 'Centang dulu persetujuan privasi data warga.' })
+                    return
+                  }
+                  setEnabled(v)
+                }}
+                disabled={!acknowledged}
+              />
             </div>
             <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-900/40 dark:bg-amber-950/20">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-300" />
               <div className="space-y-1">
-                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">Privasi data warga</p>
+                <p className="text-xs font-medium text-amber-800 dark:text-amber-200">Privasi data warga (wajib)</p>
                 <p className="text-[11px] leading-snug text-amber-700/90 dark:text-amber-200/80">
                   Data dasar warga (nama dimask, NIK dipotong, alamat dipersingkat) dikirim ke provider AI hanya saat
                   user memilih warga. NIK lengkap baru dikirim setelah Anda menekan konfirmasi pilihan.
@@ -201,7 +252,12 @@ export function AIPage() {
                     type="checkbox"
                     className="h-3.5 w-3.5 rounded border-amber-400"
                     checked={acknowledged}
-                    onChange={(e) => setAcknowledged(e.target.checked)}
+                    onChange={(e) => {
+                      const v = e.target.checked
+                      setAcknowledged(v)
+                      // Saat user uncheck persetujuan, paksa nonaktifkan toggle juga
+                      if (!v && enabled) setEnabled(false)
+                    }}
                   />
                   Saya paham dan setuju.
                 </label>
@@ -263,12 +319,79 @@ export function AIPage() {
                 <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder={preset.baseUrl} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Model</Label>
-                <Input value={model} onChange={(e) => setModel(e.target.value)} placeholder={preset.defaultModel} list="ai-suggested-models" />
-                {preset.suggestedModels.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Model</Label>
+                  <button
+                    type="button"
+                    onClick={handleFetchModels}
+                    disabled={fetchingModels || !baseUrl.trim()}
+                    className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600 hover:underline disabled:opacity-50"
+                  >
+                    <ListRestart className={cn('h-3 w-3', fetchingModels && 'animate-spin')} />
+                    {fetchingModels ? 'Fetching…' : 'Fetch dari provider'}
+                  </button>
+                </div>
+                <Input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder={preset.defaultModel}
+                  list={preset.suggestedModels.length > 0 ? 'ai-suggested-models' : undefined}
+                />
+                {preset.suggestedModels.length > 0 && fetchedModels.length === 0 && (
                   <datalist id="ai-suggested-models">
                     {preset.suggestedModels.map((m) => <option key={m} value={m} />)}
                   </datalist>
+                )}
+                {fetchModelsError && (
+                  <p className="text-[10px] text-destructive">{fetchModelsError}</p>
+                )}
+                {fetchedModels.length > 0 && (
+                  <div className="rounded-md border bg-background">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between px-2 py-1.5 text-left text-[11px] text-muted-foreground hover:bg-muted/30"
+                      onClick={() => setModelPickerOpen((v) => !v)}
+                    >
+                      <span>{fetchedModels.length} model tersedia dari provider</span>
+                      <span>{modelPickerOpen ? '▲' : '▼'}</span>
+                    </button>
+                    {modelPickerOpen && (
+                      <div className="border-t">
+                        <div className="relative px-2 py-1.5">
+                          <Search className="absolute left-3.5 top-3 h-3 w-3 text-muted-foreground" />
+                          <Input
+                            value={modelSearch}
+                            onChange={(e) => setModelSearch(e.target.value)}
+                            placeholder="Cari model..."
+                            className="h-7 pl-6 text-[11px]"
+                          />
+                        </div>
+                        <div className="max-h-40 overflow-y-auto border-t">
+                          {filteredFetchedModels.length === 0 ? (
+                            <p className="px-2 py-2 text-[10px] text-muted-foreground">Tidak ada model cocok.</p>
+                          ) : (
+                            filteredFetchedModels.map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => {
+                                  setModel(m)
+                                  setModelPickerOpen(false)
+                                  setModelSearch('')
+                                }}
+                                className={cn(
+                                  'block w-full truncate px-2 py-1.5 text-left text-[11px] hover:bg-blue-50 dark:hover:bg-blue-950/30',
+                                  m === model && 'bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+                                )}
+                              >
+                                {m}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="space-y-1">

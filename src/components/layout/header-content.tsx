@@ -153,10 +153,8 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
         variant="ghost"
         size="icon"
         className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
-        onClick={() =>
-          ai.credentials ? ai.openDrawer({ mode: 'chat' }) : navigate('/pengaturan/ai')
-        }
-        title={ai.credentials ? 'Asisten AI' : 'Aktifkan AI di pengaturan'}
+        onClick={() => ai.openDrawer({ mode: 'chat' })}
+        title="Asisten AI"
       >
         <Sparkles className="h-4 w-4" />
       </Button>

@@ -115,10 +115,13 @@ export async function saveAIConfig(input: AIConfigInput): Promise<AIConfig> {
 
 /**
  * Resolve effective credentials based on config + embedded defaults.
- * Returns null if AI cannot be used (disabled, or default key missing & no custom key).
+ * Returns null if AI cannot be used (disabled, privacy not acknowledged,
+ * or default key missing & no custom key).
  */
 export function resolveCredentials(config: AIConfig | null): AIResolvedCredentials | null {
   if (!config || !config.enabled) return null
+  // Privacy acknowledgement is mandatory regardless of provider source.
+  if (!config.privacy_acknowledged) return null
 
   if (config.use_default) {
     if (!hasDefaultKey()) return null
