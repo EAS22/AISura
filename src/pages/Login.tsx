@@ -79,8 +79,8 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
           className="absolute inset-0 h-full w-full object-cover opacity-90"
         />
         {/* Adaptive overlay: white tint in light mode, black tint in dark mode */}
-        <div className="absolute inset-0 bg-gradient-to-br from-white/70 via-white/60 to-white/85 dark:from-blue-950/60 dark:via-slate-950/70 dark:to-slate-950/95" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.18),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.25),_transparent_55%)]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-white/15 to-white/55 dark:from-blue-950/35 dark:via-slate-950/40 dark:to-slate-950/75" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.10),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.18),_transparent_55%)]" />
 
         {/* Top-left: desa identity card */}
         {dataDesa?.desa && (
@@ -102,15 +102,15 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         )}
 
         {/* Bottom-left: tagline */}
-        <div className="absolute inset-x-8 bottom-10 space-y-3 text-slate-900 dark:text-white">
-          <p className="inline-flex items-center gap-1.5 rounded-full border border-slate-900/15 bg-slate-900/5 px-3 py-1 text-xs font-medium backdrop-blur dark:border-white/20 dark:bg-white/10">
+        <div className="absolute inset-x-8 bottom-10 space-y-3 text-slate-900 [text-shadow:0_1px_2px_rgb(255_255_255_/_0.4)] dark:text-white dark:[text-shadow:0_1px_3px_rgb(0_0_0_/_0.5)]">
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-slate-900/15 bg-white/60 px-3 py-1 text-xs font-medium backdrop-blur-md dark:border-white/20 dark:bg-white/10">
             <Sparkles className="h-3.5 w-3.5" />
             Aplikasi Surat Otomatis Desa
           </p>
           <h2 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
             Operasional surat<br />desa lebih rapi.
           </h2>
-          <p className="max-w-md text-sm leading-relaxed text-slate-700 dark:text-white/75">
+          <p className="max-w-md text-sm leading-relaxed text-slate-800 dark:text-white/85">
             Kelola template DOCX, data warga, nomor surat otomatis,
             dan riwayat administrasi dalam satu workspace desktop.
           </p>
