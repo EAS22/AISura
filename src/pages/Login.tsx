@@ -82,50 +82,38 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         <div className="absolute inset-0 bg-gradient-to-br from-white/70 via-white/60 to-white/85 dark:from-blue-950/60 dark:via-slate-950/70 dark:to-slate-950/95" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.18),_transparent_55%)] dark:bg-[radial-gradient(ellipse_at_top_right,_rgba(37,99,235,0.25),_transparent_55%)]" />
 
-        {/* Top-left: brand */}
-        <div className="absolute left-8 top-8 flex items-center gap-2 text-slate-900 dark:text-white">
-          <span className="text-3xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
-            <span className="text-blue-600 dark:text-blue-400">AI</span>
-            <span>Sura</span>
-          </span>
-          <span className="rounded-full border border-slate-900/15 bg-slate-900/5 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider backdrop-blur dark:border-white/20 dark:bg-white/10">
-            v{APP_VERSION}
-          </span>
-        </div>
-
-        {/* Bottom-left: tagline + desa identity card */}
-        <div className="absolute inset-x-8 bottom-10 space-y-6 text-slate-900 dark:text-white">
-          <div className="space-y-3">
-            <p className="inline-flex items-center gap-1.5 rounded-full border border-slate-900/15 bg-slate-900/5 px-3 py-1 text-xs font-medium backdrop-blur dark:border-white/20 dark:bg-white/10">
-              <Sparkles className="h-3.5 w-3.5" />
-              Aplikasi Surat Otomatis Desa
-            </p>
-            <h2 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
-              Operasional surat<br />desa lebih rapi.
-            </h2>
-            <p className="max-w-md text-sm leading-relaxed text-slate-700 dark:text-white/75">
-              Kelola template DOCX, data warga, nomor surat otomatis,
-              dan riwayat administrasi dalam satu workspace desktop.
-            </p>
-          </div>
-
-          {dataDesa?.desa && (
-            <div className="inline-flex max-w-full items-center gap-3 rounded-2xl border border-slate-900/10 bg-white/70 p-3 pr-5 backdrop-blur-md dark:border-white/15 dark:bg-white/10">
-              {dataDesa.logo_desa ? (
-                <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 shrink-0 object-contain" />
-              ) : (
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 dark:bg-blue-500/20">
-                  <ShieldCheck className="h-6 w-6 text-blue-600 dark:text-blue-300" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">Pemerintah Desa {dataDesa.desa}</p>
-                {desaSubtitle && (
-                  <p className="text-xs text-slate-700/80 dark:text-white/65">{desaSubtitle}</p>
-                )}
+        {/* Top-left: desa identity card */}
+        {dataDesa?.desa && (
+          <div className="absolute left-8 top-8 inline-flex max-w-[calc(100%-4rem)] items-center gap-3 rounded-2xl border border-slate-900/10 bg-white/70 p-3 pr-5 backdrop-blur-md dark:border-white/15 dark:bg-white/10 text-slate-900 dark:text-white">
+            {dataDesa.logo_desa ? (
+              <img src={dataDesa.logo_desa} alt="Logo Desa" className="h-12 w-12 shrink-0 object-contain" />
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 dark:bg-blue-500/20">
+                <ShieldCheck className="h-6 w-6 text-blue-600 dark:text-blue-300" />
               </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold">Pemerintah Desa {dataDesa.desa}</p>
+              {desaSubtitle && (
+                <p className="text-xs text-slate-700/80 dark:text-white/65">{desaSubtitle}</p>
+              )}
             </div>
-          )}
+          </div>
+        )}
+
+        {/* Bottom-left: tagline */}
+        <div className="absolute inset-x-8 bottom-10 space-y-3 text-slate-900 dark:text-white">
+          <p className="inline-flex items-center gap-1.5 rounded-full border border-slate-900/15 bg-slate-900/5 px-3 py-1 text-xs font-medium backdrop-blur dark:border-white/20 dark:bg-white/10">
+            <Sparkles className="h-3.5 w-3.5" />
+            Aplikasi Surat Otomatis Desa
+          </p>
+          <h2 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
+            Operasional surat<br />desa lebih rapi.
+          </h2>
+          <p className="max-w-md text-sm leading-relaxed text-slate-700 dark:text-white/75">
+            Kelola template DOCX, data warga, nomor surat otomatis,
+            dan riwayat administrasi dalam satu workspace desktop.
+          </p>
         </div>
       </div>
 
@@ -151,15 +139,18 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
           className="pointer-events-none absolute inset-0 bg-gradient-to-b from-background via-transparent to-background"
         />
 
-        {/* Mobile only: small brand on top */}
-        <div className="absolute left-6 top-6 z-10 lg:hidden">
-          <span className="text-2xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
-            <span className="text-blue-600">AI</span>
-            <span className="text-foreground">Sura</span>
-          </span>
-        </div>
-
         <div className="relative z-10 w-full max-w-sm space-y-6">
+          {/* Brand logo + version (above heading) */}
+          <div className="flex flex-col items-center gap-2">
+            <span className="text-4xl font-bold leading-none" style={{ fontFamily: "'Unica One', cursive" }}>
+              <span className="text-blue-600">AI</span>
+              <span className="text-foreground">Sura</span>
+            </span>
+            <span className="rounded-full border bg-blue-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-blue-700 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+              v{APP_VERSION}
+            </span>
+          </div>
+
           {/* Heading */}
           <div className="space-y-2 text-center">
             <h1 className="text-3xl font-semibold tracking-tight">
