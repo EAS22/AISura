@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Upload, Wand2, FileText, Copy, Check, AlertCircle, Eye, EyeOff } from 'lucide-react'
+import { Upload, Wand2, FileText, Copy, Check, AlertCircle, Eye, EyeOff, StopCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAI } from '@/contexts/AIContext'
-import { TEMPLATE_SUGGEST_SYSTEM_PROMPT, chatCompletion, sanitizeText } from '@/services/ai'
+import { TEMPLATE_SUGGEST_SYSTEM_PROMPT, sanitizeText, streamChatCompletion } from '@/services/ai'
 import {
   WARGA_FIELDS,
   PERANGKAT_DESA_FIELDS,
@@ -42,6 +42,10 @@ export function TemplateSuggesterPanel() {
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const [existingPlaceholders, setExistingPlaceholders] = useState<string[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
+  // Streaming progress state (token byte counter while AI is generating)
+  const [progressBytes, setProgressBytes] = useState(0)
+  const [elapsedSec, setElapsedSec] = useState(0)
+  const abortRef = useRef<AbortController | null>(null)
 
   const validTokens = useMemo(() => buildValidTokenList(), [])
 
@@ -90,6 +94,12 @@ export function TemplateSuggesterPanel() {
     }
   }
 
+  const handleAbort = () => {
+    abortRef.current?.abort()
+    abortRef.current = null
+    setBusy(false)
+  }
+
   const handleSuggest = async () => {
     if (!ai.credentials) {
       setError('AI belum dikonfigurasi. Aktifkan AI di Pengaturan dulu.')
@@ -104,33 +114,80 @@ export function TemplateSuggesterPanel() {
     setBusy(true)
     setError(null)
     setResult(null)
+    setProgressBytes(0)
+    setElapsedSec(0)
+
+    const controller = new AbortController()
+    abortRef.current = controller
+    const startedAt = Date.now()
+    const elapsedTimer = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - startedAt) / 1000))
+    }, 250)
+
     try {
       const userPrompt = buildUserPrompt(validTokens, sanitized, existingClassification.recognized, existingClassification.unknown)
 
-      // Try with json_object response_format first.
+      // Streaming chat completion: token-by-token progress feedback so user
+      // doesn't think the app is stuck. Total time same as non-streaming, but
+      // perceived latency is much better.
       const baseRequest = {
         messages: [
           { role: 'system' as const, content: TEMPLATE_SUGGEST_SYSTEM_PROMPT },
           { role: 'user' as const, content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 6000,
+        // Default budget tighter (2500 ≈ ~10-12 saran with compact schema).
+        // Provider rate-limits scale with max_tokens so a smaller cap is
+        // noticeably faster on Groq and similar.
+        max_tokens: 2500,
       }
 
-      let resp = await chatCompletion(ai.credentials, {
-        ...baseRequest,
-        jsonObjectMode: true,
-      })
+      const onDelta = (chunk: string) => {
+        setProgressBytes((prev) => prev + chunk.length)
+      }
+
+      let resp = await streamChatCompletion(
+        ai.credentials,
+        { ...baseRequest, tools: undefined },
+        onDelta,
+        controller.signal,
+      )
       let raw = resp.message.content || ''
 
+      // If empty, retry without any constraints (some models occasionally
+      // emit empty content; rare but still possible).
       if (!raw.trim()) {
-        console.warn('[TemplateSuggester] empty response with json_object mode, retrying without it')
-        resp = await chatCompletion(ai.credentials, baseRequest)
+        console.warn('[TemplateSuggester] empty stream output, retrying with bigger budget')
+        setProgressBytes(0)
+        resp = await streamChatCompletion(
+          ai.credentials,
+          { ...baseRequest, max_tokens: 4000 },
+          onDelta,
+          controller.signal,
+        )
         raw = resp.message.content || ''
       }
 
+      // If finishReason=length and recovery yields very few items, retry once
+      // with bigger budget to get the full set.
+      if (resp.finishReason === 'length') {
+        const partialParse = parseSuggestionJson(raw)
+        const partialCount = partialParse?.suggestions.length ?? 0
+        if (partialCount < 5) {
+          console.warn('[TemplateSuggester] truncated with few items, retrying with bigger budget', { partialCount })
+          setProgressBytes(0)
+          resp = await streamChatCompletion(
+            ai.credentials,
+            { ...baseRequest, max_tokens: 6000 },
+            onDelta,
+            controller.signal,
+          )
+          raw = resp.message.content || ''
+        }
+      }
+
       if (!raw.trim()) {
-        console.error('[TemplateSuggester] AI returned empty content twice', {
+        console.error('[TemplateSuggester] AI returned empty content', {
           finishReason: resp.finishReason,
           usage: resp.usage,
         })
@@ -156,15 +213,21 @@ export function TemplateSuggesterPanel() {
         return
       }
       const filtered = filterRedundantSuggestions(parsed.suggestions, existingClassification)
-      // Annotate kategori di client (derived dari token, bukan dari AI output)
-      // sehingga AI tidak perlu emit field kategori → token output lebih sedikit.
       const withCategory = filtered.map(annotateCategory)
       setResult({ suggestions: withCategory, notes: parsed.notes })
     } catch (err) {
+      // Abort = user clicked Stop, not an error
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        console.info('[TemplateSuggester] aborted by user')
+        setError('Dibatalkan oleh user.')
+        return
+      }
       console.error('[TemplateSuggester] handleSuggest error', err)
       const message = err instanceof Error ? err.message : String(err)
       setError(message || 'Gagal memanggil AI')
     } finally {
+      clearInterval(elapsedTimer)
+      abortRef.current = null
       setBusy(false)
     }
   }
@@ -256,10 +319,19 @@ export function TemplateSuggesterPanel() {
           )}
         </div>
 
-        <Button size="sm" onClick={handleSuggest} disabled={busy || !text.trim()} className="w-full">
-          <Wand2 className={cn('mr-1 h-3.5 w-3.5', busy && 'animate-pulse')} />
-          {busy ? 'Menganalisa…' : 'Sarankan Placeholder'}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={handleSuggest} disabled={busy || !text.trim()} className="flex-1">
+            <Wand2 className={cn('mr-1 h-3.5 w-3.5', busy && 'animate-pulse')} />
+            {busy
+              ? `Menganalisa… ${progressBytes > 0 ? `${progressBytes} char · ` : ''}${elapsedSec}s`
+              : 'Sarankan Placeholder'}
+          </Button>
+          {busy && (
+            <Button size="sm" variant="outline" onClick={handleAbort} title="Batalkan">
+              <StopCircle className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
 
         {error && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
