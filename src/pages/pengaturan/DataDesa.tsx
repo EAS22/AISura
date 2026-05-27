@@ -101,7 +101,7 @@ export function DataDesaPage() {
       {/* Kop Surat & Logo */}
       <Card className={crmShell.card}>
         <CardHeader><CardTitle className="text-sm">Kop Surat & Logo Desa</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-2">
+        <CardContent className="grid gap-4 lg:grid-cols-[7fr_3fr]">
           <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
             <div className="flex items-center gap-2"><ImageIcon className="h-4 w-4 text-blue-600" /><Label>Kop Surat (placeholder: {'{KOP_SURAT}'})</Label></div>
             <p className="text-xs text-muted-foreground">Gambar header surat yang akan menggantikan placeholder {'{KOP_SURAT}'} di template docx.</p>
