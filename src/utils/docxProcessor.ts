@@ -84,7 +84,15 @@ export async function processDocxTemplate(
   return await doc.arrayBuffer();
 }
 
-export async function downloadDocx(buffer: ArrayBuffer, filename: string): Promise<void> {
+export interface DownloadDocxResult {
+  /** True when the file was actually written. False when user cancelled the
+   *  save dialog (Tauri only — browser fallback always reports true). */
+  saved: boolean
+  /** Final path or filename used. Path on Tauri, filename on browser. */
+  destination: string
+}
+
+export async function downloadDocx(buffer: ArrayBuffer, filename: string): Promise<DownloadDocxResult> {
   if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
     const { save } = await import('@tauri-apps/plugin-dialog');
     const { writeFile } = await import('@tauri-apps/plugin-fs');
@@ -93,19 +101,21 @@ export async function downloadDocx(buffer: ArrayBuffer, filename: string): Promi
       defaultPath: filename,
       filters: [{ name: 'Word Document', extensions: ['docx'] }],
     });
-    if (!filePath) return;
+    if (!filePath) return { saved: false, destination: '' };
     await writeFile(filePath, new Uint8Array(buffer));
-  } else {
-    const blob = new Blob([buffer], {
-      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    return { saved: true, destination: filePath };
   }
+
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  return { saved: true, destination: filename };
 }

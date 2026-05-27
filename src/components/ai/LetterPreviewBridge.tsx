@@ -8,6 +8,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Download, Eye } from 'lucide-react'
+import { toast } from 'sonner'
+import { buildLetterFilename } from '@/utils/letterFilename'
 
 interface PreviewRequest {
   templateId: string
@@ -68,8 +70,14 @@ export function useLetterPreviewBridge(): LetterPreviewBridgeApi {
       const { processDocxTemplate } = await import('@/utils/docxProcessor')
       const buf = await processDocxTemplate(bytes, input.values)
       setBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }))
-      const safeName = (input.templateName || tpl.nama).replace(/\s+/g, '_')
-      setFilename(`${safeName}.docx`)
+      // Pemohon name comes from W1_NAMA placeholder when present.
+      const pemohonName = input.values['{W1_NAMA}'] || input.values['W1_NAMA'] || ''
+      setFilename(
+        buildLetterFilename({
+          templateName: input.templateName || tpl.nama,
+          pemohonName,
+        }),
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal merender preview')
     } finally {
@@ -105,9 +113,21 @@ export function LetterPreviewBridge({ bridge }: { bridge: LetterPreviewBridgeApi
 
   const handleDownload = async () => {
     if (!bridge.blob) return
-    const arrayBuf = await bridge.blob.arrayBuffer()
-    const { downloadDocx } = await import('@/utils/docxProcessor')
-    await downloadDocx(arrayBuf, bridge.filename || 'surat.docx')
+    try {
+      const arrayBuf = await bridge.blob.arrayBuffer()
+      const { downloadDocx } = await import('@/utils/docxProcessor')
+      const filename = bridge.filename || 'surat.docx'
+      const dl = await downloadDocx(arrayBuf, filename)
+      if (dl.saved) {
+        toast.success('Surat berhasil disimpan', { description: filename })
+        bridge.setOpen(false)
+      }
+    } catch (err) {
+      console.error('Failed to download', err)
+      toast.error('Gagal menyimpan surat', {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    }
   }
 
   return (

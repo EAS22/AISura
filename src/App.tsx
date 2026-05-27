@@ -7,6 +7,7 @@ import { UpdateProvider } from '@/contexts/UpdateContext'
 import { AIProvider, useAI } from '@/contexts/AIContext'
 import { AIDrawer } from '@/components/ai/AIDrawer'
 import { LetterPreviewBridge } from '@/components/ai/LetterPreviewBridge'
+import { Toaster } from '@/components/ui/sonner'
 import { NavigationContext } from '@/lib/router'
 import { SidebarProvider } from '@/components/ui/sidebar'
 import { AppSidebar } from '@/components/layout/app-sidebar'
@@ -127,6 +128,7 @@ function App() {
               </SidebarProvider>
             </AIProvider>
           </UpdateProvider>
+          <Toaster />
         </NavigationContext.Provider>
       </LayoutProvider>
     </ThemeProvider>

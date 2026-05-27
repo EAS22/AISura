@@ -9,6 +9,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Search, Download, CalendarIcon, Eye, Star, Sparkles } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
 import { useAI } from '@/contexts/AIContext'
@@ -19,6 +20,7 @@ import { getNomorSuratConfig, incrementCounter, getCurrentCounter } from '@/serv
 import { saveRiwayat } from '@/services/riwayatService'
 import { generateNomorSuratParts, generateMultiNomorParts } from '@/utils/nomorSuratGenerator'
 import { formatNamaPerangkat } from '@/lib/utils'
+import { buildLetterFilename } from '@/utils/letterFilename'
 import type { TemplateSurat, DetectedPlaceholder, Warga, DataDesa, PerangkatDesa } from '@/types'
 
 const TEMPLATE_ACCENTS = [
@@ -150,7 +152,7 @@ export function BuatSurat() {
   }
 
   /** Build the final docx blob (shared by download and preview) */
-  const buildDocx = async (): Promise<{ blob: Blob; filename: string; finalValues: Record<string, string>; nomorUrut: number; nomorSurat: string; slotCount: number } | null> => {
+  const buildDocx = async (): Promise<{ blob: Blob; filename: string; finalValues: Record<string, string>; nomorUrut: number; nomorSurat: string; slotCount: number; pemohonName: string; generatedAt: Date } | null> => {
     const config = await getNomorSuratConfig()
     if (!config) { alert('Konfigurasi nomor surat belum diatur'); return null }
 
@@ -181,27 +183,49 @@ export function BuatSurat() {
     const { processDocxTemplate } = await import('@/utils/docxProcessor')
     const result = await processDocxTemplate(templateBytes, finalValues)
     const blob = new Blob([result], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
-    const filename = `${selectedTemplate!.nama.replace(/\s+/g, '_')}_${multiParts['N1'].S_NOMOR}.docx`
-    return { blob, filename, finalValues, nomorUrut, nomorSurat: nomorOverride || multiParts['N1'].NOMOR_SURAT, slotCount }
+
+    const generatedAt = new Date()
+    const pemohonName = findW1Value(finalValues, 'NAMA')
+    const filename = buildLetterFilename({
+      templateName: selectedTemplate!.nama,
+      pemohonName,
+      generatedAt,
+    })
+    return {
+      blob,
+      filename,
+      finalValues,
+      nomorUrut,
+      nomorSurat: nomorOverride || multiParts['N1'].NOMOR_SURAT,
+      slotCount,
+      pemohonName,
+      generatedAt,
+    }
   }
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (): Promise<boolean> => {
     try {
       const result = await buildDocx()
-      if (!result) return
+      if (!result) return false
       const { downloadDocx } = await import('@/utils/docxProcessor')
-      await downloadDocx(await result.blob.arrayBuffer() as ArrayBuffer, result.filename)
+      const dl = await downloadDocx(await result.blob.arrayBuffer() as ArrayBuffer, result.filename)
+      if (!dl.saved) return false
 
       const pemohon = {
-        nama: findW1Value(result.finalValues, 'NAMA'),
+        nama: result.pemohonName || findW1Value(result.finalValues, 'NAMA'),
         nik: findW1Value(result.finalValues, 'NIK'),
         alamat: findW1Value(result.finalValues, 'ALAMAT_LENGKAP') || findW1Value(result.finalValues, 'ALAMAT'),
       }
       const nomorUrutAkhir = result.nomorUrut + result.slotCount - 1
       await saveRiwayat(selectedTemplate!.id, selectedTemplate!.nama, result.nomorSurat, result.nomorUrut, result.finalValues, pemohon, nomorUrutAkhir)
-      alert('Surat berhasil di-generate!')
+      toast.success('Surat berhasil disimpan', { description: result.filename })
       setStep('select'); setSelectedTemplate(null); setFormValues({}); setNomorOverride(''); setTanggalOverride(undefined)
-    } catch (err) { alert('Gagal generate surat'); console.error(err) }
+      return true
+    } catch (err) {
+      console.error(err)
+      toast.error('Gagal generate surat', { description: err instanceof Error ? err.message : undefined })
+      return false
+    }
   }
 
   const handlePreview = async () => {
@@ -244,8 +268,8 @@ export function BuatSurat() {
     if (!previewBlob) return
     try {
       // For actual download, use the full generate flow (increments counter + saves riwayat)
-      await handleGenerate()
-      setPreviewOpen(false)
+      const ok = await handleGenerate()
+      if (ok) setPreviewOpen(false)
     } catch (err) { console.error(err) }
   }
 

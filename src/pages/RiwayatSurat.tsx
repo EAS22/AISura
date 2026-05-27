@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Download, Trash2, RotateCcw, Search, FileText } from 'lucide-react'
+import { toast } from 'sonner'
 import { getAllRiwayat, deleteRiwayat, deleteAllRiwayat, getRiwayatData } from '@/services/riwayatService'
 import { exportRiwayatToExcel } from '@/utils/excelExporter'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -91,9 +92,23 @@ export function RiwayatSuratPage() {
       const templateBytes = await svc.getTemplateBlob(template.file_path)
       const { processDocxTemplate, downloadDocx } = await import('@/utils/docxProcessor')
       const result = await processDocxTemplate(templateBytes, placeholderData)
-      const filename = `${r.template_nama.replace(/\s+/g, '_')}_${r.nomor_surat.replace(/\//g, '-')}.docx`
-      await downloadDocx(result, filename)
-    } catch (err) { alert('Gagal generate ulang surat'); console.error(err) }
+      const { buildLetterFilename } = await import('@/utils/letterFilename')
+      const filename = buildLetterFilename({
+        templateName: r.template_nama,
+        pemohonName: r.pemohon_nama,
+        // Use original tanggal_generate if parseable, else now.
+        generatedAt: r.tanggal_generate ? new Date(r.tanggal_generate) : new Date(),
+      })
+      const dl = await downloadDocx(result, filename)
+      if (dl.saved) {
+        toast.success('Surat berhasil disimpan', { description: filename })
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Gagal generate ulang surat', {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    }
   }
 
   const paginated = filtered.slice(page * perPage, (page + 1) * perPage)
