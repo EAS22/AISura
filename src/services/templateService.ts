@@ -84,6 +84,7 @@ export async function uploadTemplate(
     id, nama, deskripsi, file_path: filePath,
     placeholders: JSON.stringify(placeholders),
     warga_count: wargaCount, prefix_surat: prefixSurat, signer_urutan: signerUrutan,
+    is_favorite: 0,
     created_at: now, updated_at: now,
   };
 }
@@ -121,6 +122,18 @@ export async function deleteTemplate(id: string): Promise<void> {
   await execute('UPDATE riwayat_surat SET template_id = NULL WHERE template_id = $1', [id]);
   await execute('DELETE FROM template_labels WHERE template_id = $1', [id]);
   await execute('DELETE FROM templates WHERE id = $1', [id]);
+}
+
+/**
+ * Toggle favorite flag on a template. Used by Buat Surat to promote frequently
+ * used templates to a "Favorit" section above the regular grid.
+ */
+export async function setTemplateFavorite(id: string, favorite: boolean): Promise<void> {
+  const now = new Date().toISOString();
+  await execute(
+    'UPDATE templates SET is_favorite=$1, updated_at=$2 WHERE id=$3',
+    [favorite ? 1 : 0, now, id],
+  );
 }
 
 export async function getTemplateBlob(filePath: string): Promise<Uint8Array> {

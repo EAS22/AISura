@@ -8,9 +8,10 @@ import { Separator } from '@/components/ui/separator'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Search, Download, CalendarIcon, Eye } from 'lucide-react'
+import { Search, Download, CalendarIcon, Eye, Star, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
+import { useAI } from '@/contexts/AIContext'
 import { searchWarga, findKepalaKeluarga } from '@/services/wargaService'
 import { getDataDesa } from '@/services/desaService'
 import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
@@ -40,6 +41,7 @@ export function getFieldStateClass(value?: string) {
 }
 
 export function BuatSurat() {
+  const ai = useAI()
   const [templates, setTemplates] = useState<TemplateSurat[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateSurat | null>(null)
   const [placeholders, setPlaceholders] = useState<DetectedPlaceholder[]>([])
@@ -67,6 +69,25 @@ export function BuatSurat() {
       setDataDesa(await getDataDesa())
       setPerangkatDesa(await getAllPerangkatDesa())
     } catch {} finally { setLoading(false) }
+  }
+
+  const handleToggleFavorite = async (e: React.MouseEvent, t: TemplateSurat) => {
+    e.stopPropagation()
+    const next = t.is_favorite ? 0 : 1
+    // Optimistic update
+    setTemplates((prev) =>
+      prev.map((tt) => (tt.id === t.id ? { ...tt, is_favorite: next } : tt)),
+    )
+    try {
+      const svc = await import('@/services/templateService')
+      await svc.setTemplateFavorite(t.id, next === 1)
+    } catch (err) {
+      console.error('Failed to toggle favorite', err)
+      // Revert on error
+      setTemplates((prev) =>
+        prev.map((tt) => (tt.id === t.id ? { ...tt, is_favorite: t.is_favorite } : tt)),
+      )
+    }
   }
 
   const handleSelectTemplate = (t: TemplateSurat) => {
@@ -257,11 +278,32 @@ export function BuatSurat() {
     const filteredTemplates = templateSearch
       ? templates.filter(t => t.nama.toLowerCase().includes(templateSearch.toLowerCase()))
       : templates
+    const favoriteTemplates = filteredTemplates.filter((t) => t.is_favorite === 1)
+    const otherTemplates = filteredTemplates.filter((t) => t.is_favorite !== 1)
+    const aiAvailable = !!ai.credentials
 
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
-        <p className="text-sm text-muted-foreground">Pilih template surat</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Buat Surat</h1>
+            <p className="text-sm text-muted-foreground">Pilih template surat secara manual atau biarkan AI agent memandu prosesnya.</p>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => ai.openDrawer({ mode: 'chat' })}
+            disabled={!aiAvailable}
+            title={aiAvailable ? 'Buka AI agent' : 'Aktifkan AI di Pengaturan dulu'}
+            className={cn(
+              'group relative shrink-0 overflow-hidden rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-200 transition-colors hover:bg-blue-700 dark:shadow-none',
+              !aiAvailable && 'opacity-60',
+            )}
+          >
+            <span className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/45 to-transparent transition-transform duration-700 ease-out group-hover:translate-x-[300%]" />
+            <Sparkles className="mr-1 h-3.5 w-3.5" />
+            Buat Surat dengan AI Agent
+          </Button>
+        </div>
 
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -273,23 +315,44 @@ export function BuatSurat() {
             {templates.length === 0 ? 'Belum ada template.' : 'Template tidak ditemukan.'}
           </CardContent></Card>
         ) : (
-          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {filteredTemplates.map((t, index) => {
-              const accent = getTemplateAccent(index)
-              return (
-                <Card key={t.id} className={cn('group relative cursor-pointer overflow-hidden shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md', accent.card)} onClick={() => handleSelectTemplate(t)}>
-                  <div className={cn('absolute inset-y-0 left-0 w-1.5', accent.bar)} />
-                  <CardContent className="py-4 pl-5">
-                    <h3 className="font-semibold group-hover:text-blue-700 dark:group-hover:text-blue-300">{t.nama}</h3>
-                    {t.deskripsi && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.deskripsi}</p>}
-                    <div className="flex flex-wrap gap-1.5 mt-3">
-                      <Badge variant="secondary" className={accent.badge}>{JSON.parse(t.placeholders || '[]').length} placeholder</Badge>
-                      {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          <div className="space-y-5">
+            {favoriteTemplates.length > 0 && (
+              <section className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 fill-amber-400 text-amber-500" />
+                  <h2 className="text-sm font-semibold tracking-tight">Favorit</h2>
+                  <Badge variant="outline" className="rounded-full text-[10px]">
+                    {favoriteTemplates.length}
+                  </Badge>
+                </div>
+                <TemplateGrid
+                  templates={favoriteTemplates}
+                  onSelect={handleSelectTemplate}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              </section>
+            )}
+
+            {otherTemplates.length > 0 && (
+              <section className="space-y-2">
+                {favoriteTemplates.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold tracking-tight text-muted-foreground">
+                      Template lain
+                    </h2>
+                    <Badge variant="outline" className="rounded-full text-[10px]">
+                      {otherTemplates.length}
+                    </Badge>
+                  </div>
+                )}
+                <TemplateGrid
+                  templates={otherTemplates}
+                  onSelect={handleSelectTemplate}
+                  onToggleFavorite={handleToggleFavorite}
+                  startIndex={favoriteTemplates.length}
+                />
+              </section>
+            )}
           </div>
         )}
       </div>
@@ -426,8 +489,67 @@ export function BuatSurat() {
   )
 }
 
-function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }: { slot: string; index: number; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (updates: Record<string, string>) => void; dataDesa: DataDesa | null }) {
-  const [query, setQuery] = useState('')
+function TemplateGrid({
+  templates,
+  onSelect,
+  onToggleFavorite,
+  startIndex = 0,
+}: {
+  templates: TemplateSurat[]
+  onSelect: (t: TemplateSurat) => void
+  onToggleFavorite: (e: React.MouseEvent, t: TemplateSurat) => void
+  startIndex?: number
+}) {
+  return (
+    <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+      {templates.map((t, idx) => {
+        const accent = getTemplateAccent(startIndex + idx)
+        const isFavorite = t.is_favorite === 1
+        return (
+          <Card
+            key={t.id}
+            className={cn(
+              'group relative cursor-pointer overflow-hidden shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md',
+              accent.card,
+            )}
+            onClick={() => onSelect(t)}
+          >
+            <div className={cn('absolute inset-y-0 left-0 w-1.5', accent.bar)} />
+            <button
+              type="button"
+              onClick={(e) => onToggleFavorite(e, t)}
+              title={isFavorite ? 'Hapus dari favorit' : 'Tandai favorit'}
+              className={cn(
+                'absolute right-2 top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border bg-white/85 backdrop-blur transition-colors dark:bg-zinc-950/70',
+                isFavorite
+                  ? 'border-amber-300/80 text-amber-500 hover:border-amber-400'
+                  : 'border-slate-200/80 text-slate-400 hover:border-amber-300 hover:text-amber-500 dark:border-slate-700',
+              )}
+            >
+              <Star className={cn('h-3.5 w-3.5', isFavorite && 'fill-amber-400')} />
+            </button>
+            <CardContent className="py-4 pl-5 pr-10">
+              <h3 className="font-semibold group-hover:text-blue-700 dark:group-hover:text-blue-300">
+                {t.nama}
+              </h3>
+              {t.deskripsi && (
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.deskripsi}</p>
+              )}
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                <Badge variant="secondary" className={accent.badge}>
+                  {JSON.parse(t.placeholders || '[]').length} placeholder
+                </Badge>
+                {t.warga_count > 0 && <Badge variant="outline">{t.warga_count} warga</Badge>}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
+function WargaSection({ slot, index, placeholders, values, onChange, dataDesa }: { slot: string; index: number; placeholders: DetectedPlaceholder[]; values: Record<string, string>; onChange: (updates: Record<string, string>) => void; dataDesa: DataDesa | null }) {  const [query, setQuery] = useState('')
   const [results, setResults] = useState<Warga[]>([])
   const [showResults, setShowResults] = useState(false)
 

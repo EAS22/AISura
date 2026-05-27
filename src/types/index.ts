@@ -65,6 +65,8 @@ export interface TemplateSurat {
   prefix_surat: string;
   /** Urutan perangkat desa yang akan tanda tangan (default 1 = Kepala Desa). */
   signer_urutan: number;
+  /** 1 = ditandai favorit oleh user, akan dipromosikan ke section Favorit di Buat Surat. */
+  is_favorite: number;
   created_at: string;
   updated_at: string;
 }
