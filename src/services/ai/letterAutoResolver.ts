@@ -435,14 +435,14 @@ export async function listTemplatesForAI(): Promise<{ id: string; nama: string; 
   }))
 }
 
-export interface FinalizedLetter {
-  /** Resolved values with the COMMITTED nomor surat (counter consumed). */
+export interface PreparedDownload {
+  /** Resolved values with the previewed (peeked, NOT consumed) nomor surat. */
   values: Record<string, string>
-  /** Final nomor surat string used (e.g. "001/SKD/DS-CKD/V/2026"). */
+  /** Final nomor surat string the docx will use IF the download is committed. */
   nomorSurat: string
-  /** Starting counter value used (returned by incrementCounter). */
+  /** Starting counter value the docx will use IF the download is committed. */
   nomorUrut: number
-  /** Last counter value used when slotCount > 1 (nomor_urut_akhir column). */
+  /** Last counter value when slotCount > 1. */
   nomorUrutAkhir: number
   /** Number of nomor slots in the template (1 = single, >1 = multi). */
   slotCount: number
@@ -450,7 +450,7 @@ export interface FinalizedLetter {
   pemohon: { nama: string; nik: string; alamat: string }
 }
 
-export interface FinalizeLetterInput {
+export interface PrepareLetterForDownloadInput {
   templateId: string
   wargaSlots?: Record<string, string>
   customValues?: Record<string, string>
@@ -459,15 +459,15 @@ export interface FinalizeLetterInput {
 }
 
 /**
- * Counter-consuming counterpart to `buildPreparedLetter`. Use ONLY when
- * the user actually commits to download/save the surat. Returns the
- * final values map with the consumed nomor surat baked in, ready for
- * docx processing + riwayat insert.
+ * Build the FINAL docx values + metadata using the CURRENT (not yet
+ * consumed) nomor surat counter. Mirrors the manual flow in
+ * BuatSurat.buildDocx — preview-only, no side effects.
  *
- * Mirrors the increment + multiNomor logic in BuatSurat.handleGenerate
- * so AI flow stays in lockstep with manual flow.
+ * Caller is responsible for calling incrementCounter() + saveRiwayat()
+ * AFTER the file is actually saved to disk. If the user cancels the
+ * save dialog, do NOT advance the counter.
  */
-export async function finalizeLetter(input: FinalizeLetterInput): Promise<FinalizedLetter> {
+export async function prepareLetterForDownload(input: PrepareLetterForDownloadInput): Promise<PreparedDownload> {
   const template = await getTemplateById(input.templateId)
   if (!template) throw new Error(`Template ${input.templateId} tidak ditemukan`)
 
@@ -484,9 +484,9 @@ export async function finalizeLetter(input: FinalizeLetterInput): Promise<Finali
   const nomorSlotsRefs = [...new Set(placeholders.filter((p) => p.kategori === 'nomor_surat' && p.slot).map((p) => p.slot!))]
   const slotCount = nomorSlotsRefs.length || 1
 
-  // CONSUME counter — this is the only place AI flow advances the counter.
-  const { incrementCounter } = await import('../nomorSuratService')
-  const startCounter = await incrementCounter(slotCount)
+  // PEEK counter — do NOT consume. The actual incrementCounter() call
+  // is the caller's responsibility, AFTER the save dialog confirms.
+  const startCounter = await getCurrentCounter()
   const date = input.tanggalSurat ?? new Date()
   const multiParts = generateMultiNomorParts(
     nomorConfig.format,

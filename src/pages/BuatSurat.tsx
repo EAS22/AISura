@@ -151,7 +151,13 @@ export function BuatSurat() {
     return ''
   }
 
-  /** Build the final docx blob (shared by download and preview) */
+  /** Build the final docx blob (shared by download and preview).
+   *
+   * IMPORTANT: This PEEKS the nomor surat counter (does NOT consume it).
+   * Counter increment happens only after the user confirms the OS save
+   * dialog, in handleGenerate(). If the user cancels, the counter stays
+   * untouched — preventing nomor surat gaps when downloads are aborted.
+   */
   const buildDocx = async (): Promise<{ blob: Blob; filename: string; finalValues: Record<string, string>; nomorUrut: number; nomorSurat: string; slotCount: number; pemohonName: string; generatedAt: Date } | null> => {
     const config = await getNomorSuratConfig()
     if (!config) { alert('Konfigurasi nomor surat belum diatur'); return null }
@@ -160,7 +166,9 @@ export function BuatSurat() {
     const nomorSlots = [...new Set(placeholders.filter(p => p.kategori === 'nomor_surat' && p.slot).map(p => p.slot!))]
     const slotCount = nomorSlots.length || 1
 
-    const nomorUrut = await incrementCounter(slotCount)
+    // PEEK counter (no consumption). Caller commits via incrementCounter()
+    // AFTER the file is written successfully.
+    const nomorUrut = await getCurrentCounter()
     const suratDate = tanggalOverride || new Date()
     const multiParts = generateMultiNomorParts(config.format, nomorUrut, config.kode_desa, selectedTemplate!.prefix_surat || '', slotCount, suratDate)
 
@@ -209,7 +217,14 @@ export function BuatSurat() {
       if (!result) return false
       const { downloadDocx } = await import('@/utils/docxProcessor')
       const dl = await downloadDocx(await result.blob.arrayBuffer() as ArrayBuffer, result.filename)
-      if (!dl.saved) return false
+      if (!dl.saved) {
+        // User cancelled the save dialog — nomor surat counter stays put
+        // and no riwayat row is created.
+        return false
+      }
+
+      // File was actually written — NOW commit the counter + persist riwayat.
+      await incrementCounter(result.slotCount)
 
       const pemohon = {
         nama: result.pemohonName || findW1Value(result.finalValues, 'NAMA'),

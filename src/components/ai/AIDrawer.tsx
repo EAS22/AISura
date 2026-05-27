@@ -184,7 +184,7 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
     if (!session.templateId) return
 
     // Pemohon name from W1 slot (when present) — used for filename hint
-    // before commit; the committed final value will be authoritative on save.
+    // before commit; the prepared final value will be authoritative on save.
     const w1 = chat.status.slots.find((s) => s.slot === 1)
     const pemohonName = w1?.nama ?? ''
 
@@ -193,31 +193,38 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
       templateName: chat.status.templateName,
       values: chat.status.values,
       pemohonName,
-      commit: async () => {
-        // 1. Consume counter + build authoritative values map.
-        const { finalizeLetter } = await import('@/services/ai/letterAutoResolver')
-        const finalized = await finalizeLetter({
+      prepareDownload: async () => {
+        // Resolve final values WITHOUT consuming the counter. The counter
+        // is consumed only inside confirm() after the file is saved.
+        const { prepareLetterForDownload } = await import('@/services/ai/letterAutoResolver')
+        const prepared = await prepareLetterForDownload({
           templateId: session.templateId!,
           wargaSlots: session.wargaSlots,
           customValues: session.customValues,
         })
 
-        // 2. Save riwayat so the surat shows up in Riwayat Surat.
-        const { saveRiwayat } = await import('@/services/riwayatService')
-        await saveRiwayat(
-          session.templateId!,
-          chat.status!.templateName,
-          finalized.nomorSurat,
-          finalized.nomorUrut,
-          finalized.values,
-          finalized.pemohon,
-          finalized.nomorUrutAkhir,
-        )
+        const confirm = async () => {
+          // 1. Actually advance the counter now that the file is on disk.
+          const { incrementCounter } = await import('@/services/nomorSuratService')
+          await incrementCounter(prepared.slotCount)
+          // 2. Persist riwayat so the surat shows up in Riwayat Surat.
+          const { saveRiwayat } = await import('@/services/riwayatService')
+          await saveRiwayat(
+            session.templateId!,
+            chat.status!.templateName,
+            prepared.nomorSurat,
+            prepared.nomorUrut,
+            prepared.values,
+            prepared.pemohon,
+            prepared.nomorUrutAkhir,
+          )
+        }
 
         return {
-          values: finalized.values,
-          pemohonName: finalized.pemohon.nama,
-          nomorSurat: finalized.nomorSurat,
+          values: prepared.values,
+          pemohonName: prepared.pemohon.nama,
+          nomorSurat: prepared.nomorSurat,
+          confirm,
         }
       },
     })

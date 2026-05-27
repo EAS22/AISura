@@ -22,19 +22,23 @@ interface PreviewRequest {
    */
   pemohonName?: string
   /**
-   * Commit handler: when the user clicks Download, this is invoked to
-   * actually consume the nomor surat counter, save riwayat, and return
-   * the final values + metadata. The bridge then re-renders the docx
-   * with the committed values and writes it to disk.
+   * Prepare-on-download handler: invoked when user clicks Download but
+   * BEFORE the OS save dialog appears. Returns the final values + a
+   * `confirm()` callback that the bridge MUST call only AFTER the file
+   * is actually written to disk. If the user cancels the save dialog,
+   * `confirm()` must NOT be called — leaving the nomor surat counter
+   * untouched.
    *
-   * If omitted, the bridge falls back to a "preview-only" download using
-   * the values originally passed in (no counter consumption, no riwayat).
+   * If omitted, the bridge falls back to a "preview-only" download
+   * using the values originally passed in (no counter consumption,
+   * no riwayat).
    */
-  commit?: () => Promise<{
+  prepareDownload?: () => Promise<{
     values: Record<string, string>
     pemohonName: string
-    /** For toast display + post-commit logging. */
     nomorSurat?: string
+    /** Called only after the file is successfully written. */
+    confirm: () => Promise<void>
   }>
 }
 
@@ -149,19 +153,18 @@ export function LetterPreviewBridge({ bridge }: { bridge: LetterPreviewBridgeApi
       const tpl = await svc.getTemplateById(bridge.pending.templateId)
       if (!tpl) throw new Error('Template tidak ditemukan')
 
-      // If a commit callback is provided, run it to consume the nomor surat
-      // counter and obtain the final values. Otherwise fall back to the
-      // preview values (legacy / no-side-effect download).
+      // Resolve final values (no side effects yet — counter still untouched).
       let finalValues = bridge.pending.values
       let finalPemohon = bridge.pending.pemohonName ?? ''
-      if (bridge.pending.commit) {
-        const committed = await bridge.pending.commit()
-        finalValues = committed.values
-        finalPemohon = committed.pemohonName || finalPemohon
+      let confirmCommit: (() => Promise<void>) | null = null
+      if (bridge.pending.prepareDownload) {
+        const prepared = await bridge.pending.prepareDownload()
+        finalValues = prepared.values
+        finalPemohon = prepared.pemohonName || finalPemohon
+        confirmCommit = prepared.confirm
       }
 
-      // Re-render the docx with committed values (nomor surat now points to
-      // the consumed counter slot, not the preview snapshot).
+      // Re-render docx with the values that will actually be saved.
       const bytes = await svc.getTemplateBlob(tpl.file_path)
       const finalBuf = await processDocxTemplate(bytes, finalValues)
 
@@ -172,10 +175,17 @@ export function LetterPreviewBridge({ bridge }: { bridge: LetterPreviewBridgeApi
 
       const { downloadDocx } = await import('@/utils/docxProcessor')
       const dl = await downloadDocx(finalBuf, filename)
-      if (dl.saved) {
-        toast.success('Surat berhasil disimpan', { description: filename })
-        bridge.setOpen(false)
+
+      if (!dl.saved) {
+        // User cancelled the save dialog — nomor surat counter stays put.
+        return
       }
+
+      // File written successfully — now consume the counter + persist riwayat.
+      if (confirmCommit) await confirmCommit()
+
+      toast.success('Surat berhasil disimpan', { description: filename })
+      bridge.setOpen(false)
     } catch (err) {
       console.error('Failed to download', err)
       toast.error('Gagal menyimpan surat', {
