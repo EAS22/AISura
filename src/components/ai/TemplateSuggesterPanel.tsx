@@ -89,7 +89,7 @@ export function TemplateSuggesterPanel() {
 
   const handleSuggest = async () => {
     if (!ai.credentials) {
-      setError('AI belum dikonfigurasi.')
+      setError('AI belum dikonfigurasi. Aktifkan AI di Pengaturan dulu.')
       return
     }
     // Sanitasi terakhir sebelum kirim — text sudah di-normalize saat extract,
@@ -118,7 +118,8 @@ export function TemplateSuggesterPanel() {
       const raw = resp.message.content || ''
       const parsed = parseSuggestionJson(raw)
       if (!parsed) {
-        setError('Respons AI bukan JSON yang valid. Coba ulangi.')
+        console.error('[TemplateSuggester] AI response is not valid JSON', { raw })
+        setError('Respons AI bukan JSON yang valid. Coba ulangi atau ganti model.')
         return
       }
       // Filter saran yang token-nya sudah ada di template (kecuali untuk
@@ -126,7 +127,9 @@ export function TemplateSuggesterPanel() {
       const filtered = filterRedundantSuggestions(parsed.suggestions, existingClassification)
       setResult({ suggestions: filtered, notes: parsed.notes })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Gagal memanggil AI')
+      console.error('[TemplateSuggester] handleSuggest error', err)
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message || 'Gagal memanggil AI')
     } finally {
       setBusy(false)
     }

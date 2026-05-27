@@ -19,20 +19,67 @@ export interface AIClientError extends Error {
   isNetwork: boolean
 }
 
-function makeError(message: string, init: Partial<AIClientError>): AIClientError {
+function makeError(message: string, init: Partial<AIClientError>, cause?: unknown): AIClientError {
   const err = new Error(message) as AIClientError
   err.status = init.status
   err.body = init.body
   err.isRateLimit = init.isRateLimit ?? false
   err.isAuth = init.isAuth ?? false
   err.isNetwork = init.isNetwork ?? false
+  if (cause !== undefined) {
+    try {
+      ;(err as Error & { cause?: unknown }).cause = cause
+    } catch { /* older runtimes */ }
+  }
   return err
 }
 
+/** Strip control characters that would break HTTP header serialization. */
+function sanitizeHeaderValue(input: string): string {
+  // Headers must not contain CR/LF or other control chars (0x00-0x1F except 0x09 tab is ok-ish).
+  // Also strip soft hyphen, zero-width chars, NBSP that often hitch a ride from copy-paste.
+  return input
+    .replace(/[\u0000-\u0008\u000A-\u001F\u007F]/g, '')
+    .replace(/\u00AD/g, '')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .trim()
+}
+
+/**
+ * Build a request URL with strict validation. WebKit (Tauri on Linux) throws
+ * a generic "The string did not match the expected pattern." when fetch
+ * receives a malformed URL, which is opaque to users. We surface a clearer
+ * message with the offending input.
+ */
 function buildUrl(baseUrl: string, path: string): string {
-  const base = baseUrl.replace(/\/+$/, '')
+  const cleaned = sanitizeHeaderValue(baseUrl)
+  if (!cleaned) {
+    throw makeError('Base URL kosong. Cek pengaturan AI.', {})
+  }
+  // Validate it parses as a URL.
+  try {
+    const u = new URL(cleaned)
+    if (!/^https?:$/.test(u.protocol)) {
+      throw new Error(`Protokol tidak didukung: ${u.protocol}`)
+    }
+  } catch (err) {
+    throw makeError(
+      `Base URL tidak valid: "${baseUrl}". ${err instanceof Error ? err.message : ''}`.trim(),
+      {},
+      err,
+    )
+  }
+  const base = cleaned.replace(/\/+$/, '')
   const p = path.startsWith('/') ? path : `/${path}`
   return `${base}${p}`
+}
+
+/** Build Authorization header safely. Empty key returns no header pair. */
+function buildAuthHeader(apiKey: string): Record<string, string> {
+  const cleaned = sanitizeHeaderValue(apiKey)
+  if (!cleaned) return {}
+  return { Authorization: `Bearer ${cleaned}` }
 }
 
 /**
@@ -44,9 +91,7 @@ export async function listModels(
   apiKey: string,
   signal?: AbortSignal,
 ): Promise<string[]> {
-  const trimmedBase = baseUrl.trim()
-  if (!trimmedBase) throw makeError('Base URL kosong', {})
-  const url = buildUrl(trimmedBase, '/models')
+  const url = buildUrl(baseUrl, '/models')
   let res: Response
   try {
     res = await fetch(url, {
@@ -54,13 +99,16 @@ export async function listModels(
       signal,
       headers: {
         Accept: 'application/json',
-        ...(apiKey.trim() ? { Authorization: `Bearer ${apiKey.trim()}` } : {}),
+        ...buildAuthHeader(apiKey),
       },
     })
-  } catch {
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error('[AI] listModels fetch error', err)
     throw makeError(
-      `Tidak dapat menghubungi ${trimmedBase}. Cek koneksi atau alamat endpoint.`,
+      `Tidak dapat menghubungi ${baseUrl}. ${detail}`.trim(),
       { isNetwork: true },
+      err,
     )
   }
 
@@ -144,14 +192,17 @@ export async function chatCompletion(
       signal,
       headers: {
         'Content-Type': 'application/json',
-        ...(creds.apiKey ? { Authorization: `Bearer ${creds.apiKey}` } : {}),
+        ...buildAuthHeader(creds.apiKey),
       },
       body: JSON.stringify(body),
     })
   } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error('[AI] chatCompletion fetch error', { url, model: creds.model, error: err })
     throw makeError(
-      `Tidak dapat menghubungi AI provider (${creds.baseUrl}). Cek koneksi internet atau alamat endpoint.`,
+      `Tidak dapat menghubungi AI provider (${creds.baseUrl}). ${detail}`.trim(),
       { isNetwork: true },
+      err,
     )
   }
 
@@ -164,7 +215,8 @@ export async function chatCompletion(
         ? 'API key ditolak (401/403). Cek lagi key di Pengaturan AI.'
         : isRateLimit
           ? 'Rate limit tercapai. Tunggu sebentar atau pakai API key sendiri.'
-          : `AI provider mengembalikan error ${res.status}.`
+          : `AI provider mengembalikan error ${res.status}.${text ? ` Detail: ${text.slice(0, 200)}` : ''}`
+    console.error('[AI] chatCompletion non-ok', { status: res.status, body: text.slice(0, 500) })
     throw makeError(human, { status: res.status, body: text, isAuth, isRateLimit })
   }
 
@@ -232,14 +284,17 @@ export async function streamChatCompletion(
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        ...(creds.apiKey ? { Authorization: `Bearer ${creds.apiKey}` } : {}),
+        ...buildAuthHeader(creds.apiKey),
       },
       body: JSON.stringify(body),
     })
-  } catch {
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err)
+    console.error('[AI] streamChatCompletion fetch error', { url, model: creds.model, error: err })
     throw makeError(
-      `Tidak dapat menghubungi AI provider (${creds.baseUrl}). Cek koneksi internet atau alamat endpoint.`,
+      `Tidak dapat menghubungi AI provider (${creds.baseUrl}). ${detail}`.trim(),
       { isNetwork: true },
+      err,
     )
   }
 
@@ -252,7 +307,8 @@ export async function streamChatCompletion(
         ? 'API key ditolak (401/403). Cek lagi key di Pengaturan AI.'
         : isRateLimit
           ? 'Rate limit tercapai. Tunggu sebentar atau pakai API key sendiri.'
-          : `AI provider mengembalikan error ${res.status}.`
+          : `AI provider mengembalikan error ${res.status}.${text ? ` Detail: ${text.slice(0, 200)}` : ''}`
+    console.error('[AI] streamChatCompletion non-ok', { status: res.status, body: text.slice(0, 500) })
     throw makeError(human, { status: res.status, body: text, isAuth, isRateLimit })
   }
 
