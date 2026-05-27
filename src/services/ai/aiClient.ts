@@ -263,13 +263,37 @@ export async function chatCompletion(
   }
 
   let data: ChatCompletionRaw
+  // Read response as text first (so if JSON parse fails we still have the
+  // raw payload available for diagnostics — once a stream is consumed by
+  // .json() it can't be re-read).
+  let rawText: string
   try {
-    data = (await res.json()) as ChatCompletionRaw
+    rawText = await res.text()
   } catch (err) {
-    const txt = await res.text().catch(() => '(failed to read body)')
-    console.error('[AI] chatCompletion response JSON parse error', { error: err, bodySample: txt.slice(0, 500) })
+    console.error('[AI] chatCompletion failed to read response body', err)
     throw makeError(
-      `Respons AI bukan JSON yang valid: ${err instanceof Error ? err.message : 'unknown'}`,
+      `Tidak bisa baca respons dari provider: ${err instanceof Error ? err.message : 'unknown'}`,
+      {},
+      err,
+    )
+  }
+
+  console.debug('[AI] chatCompletion ←', {
+    bodyBytes: rawText.length,
+    bodyPreview: rawText.slice(0, 400),
+  })
+
+  try {
+    data = JSON.parse(rawText) as ChatCompletionRaw
+  } catch (err) {
+    console.error('[AI] chatCompletion response JSON parse error', {
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+      bodyBytes: rawText.length,
+      bodySample: rawText.slice(0, 1500),
+      contentType: res.headers.get('content-type'),
+    })
+    throw makeError(
+      `Respons AI bukan JSON yang valid (${rawText.length} byte): ${err instanceof Error ? err.message : 'unknown'}. Sample: ${rawText.slice(0, 200)}`,
       {},
       err,
     )
