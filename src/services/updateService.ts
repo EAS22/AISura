@@ -21,12 +21,31 @@ export function createProgressState(input: { downloaded: number; contentLength: 
   return { ...input, downloaded, percent }
 }
 
-export async function checkForAppUpdate(): Promise<Update | null> {
+export interface CheckResult {
+  ok: boolean
+  update?: Update
+  /** Set when check failed (network, parse error, signature mismatch, etc). */
+  error?: string
+}
+
+/**
+ * Checks GitHub for an update. Distinguishes between:
+ *   - { ok: true, update: <Update> }    — newer version available
+ *   - { ok: true, update: undefined }   — already on latest version
+ *   - { ok: false, error: '...' }       — check itself failed (network etc)
+ *
+ * Previously this swallowed errors into a null return, making "no update"
+ * indistinguishable from "couldn't reach the server" — which left users
+ * thinking their app was up to date when in fact the check never ran.
+ */
+export async function checkForAppUpdate(): Promise<CheckResult> {
   try {
-    return await check()
+    const update = await check()
+    return { ok: true, update: update ?? undefined }
   } catch (err) {
-    console.warn('Update check failed', err)
-    return null
+    const message = err instanceof Error ? err.message : String(err)
+    console.warn('[Update] check failed:', message)
+    return { ok: false, error: message }
   }
 }
 
