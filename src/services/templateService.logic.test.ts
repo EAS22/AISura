@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTemplateUpdateSql } from './templateService'
+import { buildTemplateUpdateSql, collectDocxPlaceholderXmlPaths } from './templateService'
 
 describe('templateService update helpers', () => {
   it('builds metadata-only update without touching placeholders or warga count', () => {
@@ -50,5 +50,64 @@ describe('templateService update helpers', () => {
       '2026-05-25T10:00:00.000Z',
       'tpl-1',
     ])
+  })
+})
+
+describe('collectDocxPlaceholderXmlPaths', () => {
+  it('always includes the main document body when present', () => {
+    const out = collectDocxPlaceholderXmlPaths([
+      '[Content_Types].xml',
+      'word/document.xml',
+      'word/styles.xml',
+    ])
+    expect(out).toEqual(['word/document.xml'])
+  })
+
+  it('also picks up legacy header1 / header2 / footer1 parts', () => {
+    const out = collectDocxPlaceholderXmlPaths([
+      'word/document.xml',
+      'word/header1.xml',
+      'word/header2.xml',
+      'word/footer1.xml',
+    ])
+    expect(out).toEqual([
+      'word/document.xml',
+      'word/header1.xml',
+      'word/header2.xml',
+      'word/footer1.xml',
+    ])
+  })
+
+  it('picks up header3.xml that Word 2021 creates for first-page header', () => {
+    // Regression: bug where {KOP_SURAT} living inside header3.xml went
+    // undetected because the previous code hardcoded only header1 + header2.
+    const out = collectDocxPlaceholderXmlPaths([
+      'word/document.xml',
+      'word/header1.xml',
+      'word/header2.xml',
+      'word/header3.xml',
+      'word/footer1.xml',
+      'word/footer2.xml',
+      'word/footer3.xml',
+    ])
+    expect(out).toContain('word/header3.xml')
+    expect(out).toContain('word/footer3.xml')
+  })
+
+  it('ignores unrelated XML parts (settings, theme, fontTable, ...)', () => {
+    const out = collectDocxPlaceholderXmlPaths([
+      'word/document.xml',
+      'word/settings.xml',
+      'word/theme/theme1.xml',
+      'word/fontTable.xml',
+      'word/header1.xml',
+    ])
+    expect(out).toEqual(['word/document.xml', 'word/header1.xml'])
+  })
+
+  it('returns empty when no document body is present', () => {
+    const out = collectDocxPlaceholderXmlPaths(['word/header1.xml'])
+    // No document.xml present (defensive — real docx will always have it).
+    expect(out).toEqual(['word/header1.xml'])
   })
 })

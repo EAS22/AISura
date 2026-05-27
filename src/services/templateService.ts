@@ -136,6 +136,37 @@ export async function setTemplateFavorite(id: string, favorite: boolean): Promis
   );
 }
 
+/**
+ * Re-scan placeholders inside a template's stored .docx file and overwrite
+ * the cached placeholders + warga_count columns.
+ *
+ * Used to repair template metadata after a placeholder-detection bug fix —
+ * notably the case where {KOP_SURAT} living inside header3.xml (Word 2021
+ * "Different First Page" header) was missed by the earlier hardcoded
+ * header1/header2 scan, leaving uploaded templates with stale metadata.
+ */
+export async function rescanTemplatePlaceholders(id: string): Promise<TemplateSurat> {
+  const template = await getTemplateById(id);
+  if (!template) throw new Error('Template tidak ditemukan');
+
+  const fileBytes = await getTemplateBlob(template.file_path);
+  const placeholders = await detectPlaceholdersFromDocx(fileBytes);
+  const wargaCount = countWargaSlots(placeholders);
+  const now = new Date().toISOString();
+
+  await execute(
+    'UPDATE templates SET placeholders=$1, warga_count=$2, updated_at=$3 WHERE id=$4',
+    [JSON.stringify(placeholders), wargaCount, now, id],
+  );
+
+  return {
+    ...template,
+    placeholders: JSON.stringify(placeholders),
+    warga_count: wargaCount,
+    updated_at: now,
+  };
+}
+
 export async function getTemplateBlob(filePath: string): Promise<Uint8Array> {
   return await readFile(filePath, { baseDir: BaseDirectory.AppConfig });
 }
@@ -149,8 +180,15 @@ async function detectPlaceholdersFromDocx(fileBytes: Uint8Array): Promise<Return
   const zip = await JSZip.loadAsync(fileBytes);
   let xmlContent = '';
 
-  const xmlFiles = ['word/document.xml', 'word/header1.xml', 'word/header2.xml', 'word/footer1.xml', 'word/footer2.xml'];
-  for (const f of xmlFiles) {
+  // Scan main document + ALL header/footer parts. Word 2021 (and modern Word
+  // in general) creates separate header parts when "Different First Page" or
+  // "Different Odd & Even Pages" is enabled — typically header1.xml,
+  // header2.xml, header3.xml. Hardcoding the first two missed any placeholder
+  // that ended up in header3+ (e.g. {KOP_SURAT} on the first-page header),
+  // which then broke replacement at generate time.
+  const candidatePaths = collectDocxPlaceholderXmlPaths(Object.keys(zip.files))
+
+  for (const f of candidatePaths) {
     const file = zip.file(f);
     if (file) {
       xmlContent += await file.async('text');
@@ -158,6 +196,23 @@ async function detectPlaceholdersFromDocx(fileBytes: Uint8Array): Promise<Return
   }
 
   return detectPlaceholders(xmlContent);
+}
+
+/**
+ * From the list of file names inside a .docx zip, pick the XML parts where
+ * placeholders may live: the main document, and every header/footer part
+ * (header1.xml ... headerN.xml, footer1.xml ... footerN.xml).
+ *
+ * Exported for unit testing — keeps the file selection logic verifiable
+ * without spinning up the SQLite + Tauri filesystem layer.
+ */
+export function collectDocxPlaceholderXmlPaths(zipEntries: string[]): string[] {
+  const out: string[] = []
+  if (zipEntries.includes('word/document.xml')) out.push('word/document.xml')
+  for (const name of zipEntries) {
+    if (/^word\/(header|footer)\d+\.xml$/i.test(name)) out.push(name)
+  }
+  return out
 }
 
 export async function getTemplateLabels(templateId: string): Promise<TemplateLabel[]> {

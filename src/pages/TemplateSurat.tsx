@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FilePlus, Trash2, Pencil, Download, Sparkles, PenTool } from 'lucide-react'
+import { FilePlus, Trash2, Pencil, Download, Sparkles, PenTool, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import { countNomorSlots } from '@/utils/placeholderDetector'
 import { getAllPerangkatDesa } from '@/services/perangkatDesaService'
 import { formatNamaPerangkat } from '@/lib/utils'
@@ -106,6 +107,29 @@ export function TemplateSuratPage() {
       if (!destinationPath) return
       await svc.downloadTemplateToPath(template.file_path, destinationPath)
     } catch (err) { alert('Gagal download template'); console.error(err) }
+  }
+
+  const handleRescan = async (template: TemplateSurat) => {
+    try {
+      const svc = await import('@/services/templateService')
+      const updated = await svc.rescanTemplatePlaceholders(template.id)
+      const newCount = JSON.parse(updated.placeholders || '[]').length
+      const oldCount = JSON.parse(template.placeholders || '[]').length
+      const delta = newCount - oldCount
+      const desc =
+        delta > 0
+          ? `${newCount} placeholder ditemukan (+${delta} baru)`
+          : delta < 0
+            ? `${newCount} placeholder ditemukan (${delta} hilang)`
+            : `${newCount} placeholder, tidak ada perubahan`
+      toast.success('Placeholder berhasil di-scan ulang', { description: desc })
+      await loadAll()
+    } catch (err) {
+      console.error(err)
+      toast.error('Gagal scan ulang placeholder', {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    }
   }
 
   const openEditModal = (t: TemplateSurat) => {
@@ -209,6 +233,9 @@ export function TemplateSuratPage() {
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleDownloadTemplate(t)} title="Download template DOCX">
                       <Download className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleRescan(t)} title="Scan ulang placeholder dari file">
+                      <RefreshCw className="h-3.5 w-3.5" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEditModal(t)}>
                       <Pencil className="h-3.5 w-3.5" />
