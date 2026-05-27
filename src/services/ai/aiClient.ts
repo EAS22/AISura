@@ -185,16 +185,58 @@ export async function chatCompletion(
     body.response_format = { type: 'json_object' }
   }
 
+  // Serialize body BEFORE fetch so any JSON / encoding error is caught
+  // separately from network errors. Same applies to header building.
+  let bodyJson: string
+  try {
+    bodyJson = JSON.stringify(body)
+  } catch (err) {
+    console.error('[AI] chatCompletion JSON.stringify error', { error: err, bodyPreview: { model: creds.model, messageCount: request.messages.length } })
+    throw makeError(
+      `Tidak bisa serialize request body ke JSON: ${err instanceof Error ? err.message : 'unknown'}`,
+      {},
+      err,
+    )
+  }
+
+  let headers: Record<string, string>
+  try {
+    headers = {
+      'Content-Type': 'application/json',
+      ...buildAuthHeader(creds.apiKey),
+    }
+    // Validate header values manually so a malformed value doesn't crash the
+    // entire fetch with an opaque WebKit message.
+    for (const [k, v] of Object.entries(headers)) {
+      if (/[\r\n\u0000-\u001F\u007F]/.test(v)) {
+        throw new Error(`Header "${k}" mengandung karakter terlarang`)
+      }
+    }
+  } catch (err) {
+    console.error('[AI] chatCompletion header build error', err)
+    throw makeError(
+      `Header request tidak valid: ${err instanceof Error ? err.message : 'unknown'}`,
+      {},
+      err,
+    )
+  }
+
+  console.debug('[AI] chatCompletion →', {
+    url,
+    model: creds.model,
+    messageCount: request.messages.length,
+    bodyBytes: bodyJson.length,
+    jsonObjectMode: !!request.jsonObjectMode,
+    hasTools: !!request.tools?.length,
+  })
+
   let res: Response
   try {
     res = await fetch(url, {
       method: 'POST',
       signal,
-      headers: {
-        'Content-Type': 'application/json',
-        ...buildAuthHeader(creds.apiKey),
-      },
-      body: JSON.stringify(body),
+      headers,
+      body: bodyJson,
     })
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err)
@@ -220,7 +262,18 @@ export async function chatCompletion(
     throw makeError(human, { status: res.status, body: text, isAuth, isRateLimit })
   }
 
-  const data = (await res.json()) as ChatCompletionRaw
+  let data: ChatCompletionRaw
+  try {
+    data = (await res.json()) as ChatCompletionRaw
+  } catch (err) {
+    const txt = await res.text().catch(() => '(failed to read body)')
+    console.error('[AI] chatCompletion response JSON parse error', { error: err, bodySample: txt.slice(0, 500) })
+    throw makeError(
+      `Respons AI bukan JSON yang valid: ${err instanceof Error ? err.message : 'unknown'}`,
+      {},
+      err,
+    )
+  }
   const choice = data.choices?.[0]
   if (!choice) throw makeError('Respons AI tidak berisi pesan.', {})
 
