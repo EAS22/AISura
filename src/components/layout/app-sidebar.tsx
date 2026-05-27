@@ -72,9 +72,8 @@ function SidebarFooterContent() {
   if (isCollapsed) return null
 
   return (
-    <div className="mx-2 rounded-2xl border border-blue-100 bg-blue-50/80 px-3 py-2 text-[10px] text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/25 dark:text-blue-300">
-      <p className="font-semibold">EAS Creative Studio</p>
-      <p className="mt-0.5 text-blue-600/70 dark:text-blue-300/70">AISura workspace</p>
-    </div>
+    <p className="px-2 py-1 text-center text-[10px] font-medium tracking-wide text-blue-700/80 dark:text-blue-300/70">
+      EAS Creative Studio
+    </p>
   )
 }

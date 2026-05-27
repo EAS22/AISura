@@ -307,7 +307,7 @@ export function AIPage() {
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">AISura AI</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">AISura Assistant</p>
                 <h2 className="text-lg font-semibold">Asisten administrasi desa</h2>
               </div>
             </div>

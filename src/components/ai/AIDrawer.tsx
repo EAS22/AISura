@@ -38,7 +38,7 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
         <SheetHeader className="border-b border-white/40 px-5 py-4 dark:border-white/10">
           <SheetTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-blue-600" />
-            AISura AI
+            AISura Assistant
           </SheetTitle>
           <SheetDescription>
             {ai.credentials
