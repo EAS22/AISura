@@ -42,6 +42,16 @@ interface UseAIChatResult {
   status: AILetterStatus | null
   /** Latest unanswered quick replies (cleared once user picks or sends another message). */
   pendingChoices: AIQuickReplies | null
+  /**
+   * Snapshot of the internal session for use by callers that need to
+   * commit the letter (mainly the download flow which has to consume
+   * the nomor surat counter and save riwayat).
+   */
+  getSessionSnapshot: () => {
+    templateId?: string
+    wargaSlots: Record<string, string>
+    customValues: Record<string, string>
+  }
 }
 
 const MAX_TOOL_ROUNDS = 8
@@ -267,7 +277,16 @@ export function useAIChat(creds: AIResolvedCredentials | null, options: UseAICha
     [sendInternal],
   )
 
-  return { messages, busy, error, send, pickChoice, reset, abort, status, pendingChoices }
+  const getSessionSnapshot = useCallback(() => {
+    const s = sessionRef.current
+    return {
+      templateId: s.templateId,
+      wargaSlots: { ...s.wargaSlots },
+      customValues: { ...s.customValues },
+    }
+  }, [])
+
+  return { messages, busy, error, send, pickChoice, reset, abort, status, pendingChoices, getSessionSnapshot }
 }
 
 function structuredChoiceMessage(choice: AIChoice, kind: AIQuickReplies['kind'], slot?: number): string {

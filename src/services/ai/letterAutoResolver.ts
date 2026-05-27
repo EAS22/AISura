@@ -434,3 +434,156 @@ export async function listTemplatesForAI(): Promise<{ id: string; nama: string; 
     prefix_surat: t.prefix_surat || '',
   }))
 }
+
+export interface FinalizedLetter {
+  /** Resolved values with the COMMITTED nomor surat (counter consumed). */
+  values: Record<string, string>
+  /** Final nomor surat string used (e.g. "001/SKD/DS-CKD/V/2026"). */
+  nomorSurat: string
+  /** Starting counter value used (returned by incrementCounter). */
+  nomorUrut: number
+  /** Last counter value used when slotCount > 1 (nomor_urut_akhir column). */
+  nomorUrutAkhir: number
+  /** Number of nomor slots in the template (1 = single, >1 = multi). */
+  slotCount: number
+  /** The pemohon snapshot (W1) used for filename + riwayat. */
+  pemohon: { nama: string; nik: string; alamat: string }
+}
+
+export interface FinalizeLetterInput {
+  templateId: string
+  wargaSlots?: Record<string, string>
+  customValues?: Record<string, string>
+  /** Optional override; defaults to today. */
+  tanggalSurat?: Date
+}
+
+/**
+ * Counter-consuming counterpart to `buildPreparedLetter`. Use ONLY when
+ * the user actually commits to download/save the surat. Returns the
+ * final values map with the consumed nomor surat baked in, ready for
+ * docx processing + riwayat insert.
+ *
+ * Mirrors the increment + multiNomor logic in BuatSurat.handleGenerate
+ * so AI flow stays in lockstep with manual flow.
+ */
+export async function finalizeLetter(input: FinalizeLetterInput): Promise<FinalizedLetter> {
+  const template = await getTemplateById(input.templateId)
+  if (!template) throw new Error(`Template ${input.templateId} tidak ditemukan`)
+
+  const placeholders: DetectedPlaceholder[] = (() => {
+    try { return JSON.parse(template.placeholders || '[]') } catch { return [] }
+  })()
+
+  const dataDesa = await getDataDesa()
+  const perangkat = await getAllPerangkatDesa()
+
+  const nomorConfig = await getNomorSuratConfig()
+  if (!nomorConfig) throw new Error('Konfigurasi nomor surat belum diatur')
+
+  const nomorSlotsRefs = [...new Set(placeholders.filter((p) => p.kategori === 'nomor_surat' && p.slot).map((p) => p.slot!))]
+  const slotCount = nomorSlotsRefs.length || 1
+
+  // CONSUME counter — this is the only place AI flow advances the counter.
+  const { incrementCounter } = await import('../nomorSuratService')
+  const startCounter = await incrementCounter(slotCount)
+  const date = input.tanggalSurat ?? new Date()
+  const multiParts = generateMultiNomorParts(
+    nomorConfig.format,
+    startCounter,
+    nomorConfig.kode_desa,
+    template.prefix_surat || '',
+    slotCount,
+    date,
+  )
+
+  const nomor: Record<string, string> = {}
+  for (const [slot, parts] of Object.entries(multiParts)) {
+    for (const [field, val] of Object.entries(parts)) {
+      nomor[`${slot}_${field}`] = String(val)
+    }
+  }
+  const first = multiParts['N1']
+  if (first) {
+    for (const [field, val] of Object.entries(first)) {
+      nomor[field] = String(val)
+    }
+  }
+
+  // Resolve warga slots (re-fetch warga records to include latest data).
+  const wargaSlotsMap = new Map<number, Warga>()
+  const kepalaKeluargaCache = new Map<string, string>()
+  if (input.wargaSlots) {
+    for (const [slotLabel, wargaId] of Object.entries(input.wargaSlots)) {
+      const m = slotLabel.match(/^W(\d+)$/)
+      if (!m) continue
+      const slot = parseInt(m[1], 10)
+      const w = await getWargaById(wargaId)
+      if (!w) continue
+      wargaSlotsMap.set(slot, w)
+      if (w.no_kk && !kepalaKeluargaCache.has(w.no_kk)) {
+        const kk = await findKepalaKeluarga(w.no_kk)
+        kepalaKeluargaCache.set(w.no_kk, kk?.nama ?? '')
+      }
+    }
+  }
+
+  const ctx: PlaceholderResolveContext = {
+    warga: wargaSlotsMap,
+    kepalaKeluargaCache,
+    dataDesa,
+    perangkat,
+    nomor,
+    signerUrutan: template.signer_urutan || 1,
+  }
+
+  // Build a case-insensitive index of user-supplied custom values.
+  const customLookup = new Map<string, string>()
+  if (input.customValues) {
+    for (const [k, v] of Object.entries(input.customValues)) {
+      const cleaned = k.replace(/^\{|\}$/g, '').trim()
+      if (!cleaned) continue
+      const { base } = splitTokenAndModifier(cleaned.toUpperCase())
+      customLookup.set(base, v)
+    }
+  }
+
+  const values: Record<string, string> = {}
+  for (const ph of placeholders) {
+    const resolved = resolveSinglePlaceholder(ph.token, ctx)
+    if (resolved !== null) {
+      values[ph.token] = resolved
+      continue
+    }
+    if (ph.kategori === 'custom') {
+      const { base, modifier } = splitTokenAndModifier(ph.token)
+      const supplied = customLookup.get(base.toUpperCase())
+      values[ph.token] = supplied !== undefined ? applyTextModifier(supplied, modifier) : ''
+      continue
+    }
+    values[ph.token] = ''
+  }
+
+  // Pemohon = W1
+  const w1 = wargaSlotsMap.get(1)
+  const pemohon = {
+    nama: w1?.nama ?? '',
+    nik: w1?.nik ?? '',
+    alamat: w1
+      ? buildAlamatLengkap(
+          w1,
+          (w1.no_kk && kepalaKeluargaCache.get(w1.no_kk)) || '',
+          dataDesa,
+        )
+      : '',
+  }
+
+  return {
+    values,
+    nomorSurat: first?.NOMOR_SURAT ?? '',
+    nomorUrut: startCounter,
+    nomorUrutAkhir: startCounter + slotCount - 1,
+    slotCount,
+    pemohon,
+  }
+}

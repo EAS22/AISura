@@ -15,6 +15,27 @@ interface PreviewRequest {
   templateId: string
   templateName?: string
   values: Record<string, string>
+  /**
+   * Pemohon name used for filename display before commit. Final filename
+   * will be re-derived from the commit() result, but having this preserves
+   * the right name in the preview filename hint.
+   */
+  pemohonName?: string
+  /**
+   * Commit handler: when the user clicks Download, this is invoked to
+   * actually consume the nomor surat counter, save riwayat, and return
+   * the final values + metadata. The bridge then re-renders the docx
+   * with the committed values and writes it to disk.
+   *
+   * If omitted, the bridge falls back to a "preview-only" download using
+   * the values originally passed in (no counter consumption, no riwayat).
+   */
+  commit?: () => Promise<{
+    values: Record<string, string>
+    pemohonName: string
+    /** For toast display + post-commit logging. */
+    nomorSurat?: string
+  }>
 }
 
 export interface LetterPreviewBridgeApi {
@@ -70,12 +91,21 @@ export function useLetterPreviewBridge(): LetterPreviewBridgeApi {
       const { processDocxTemplate } = await import('@/utils/docxProcessor')
       const buf = await processDocxTemplate(bytes, input.values)
       setBlob(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }))
-      // Pemohon name comes from W1_NAMA placeholder when present.
-      const pemohonName = input.values['{W1_NAMA}'] || input.values['W1_NAMA'] || ''
+      // Caller now provides pemohonName explicitly. Fallback: scan values
+      // for a W*_NAMA token (case-insensitive) — robust across whichever
+      // naming convention the placeholder map happens to use.
+      const fallbackPemohon = (() => {
+        if (input.pemohonName) return input.pemohonName
+        for (const [k, v] of Object.entries(input.values)) {
+          const key = k.replace(/^\{|\}$/g, '').toUpperCase()
+          if (/^W1_NAMA$/.test(key) && v) return v
+        }
+        return ''
+      })()
       setFilename(
         buildLetterFilename({
           templateName: input.templateName || tpl.nama,
-          pemohonName,
+          pemohonName: fallbackPemohon,
         }),
       )
     } catch (err) {
@@ -112,12 +142,36 @@ export function LetterPreviewBridge({ bridge }: { bridge: LetterPreviewBridgeApi
   }, [bridge.blob])
 
   const handleDownload = async () => {
-    if (!bridge.blob) return
+    if (!bridge.blob || !bridge.pending) return
     try {
-      const arrayBuf = await bridge.blob.arrayBuffer()
+      const svc = await import('@/services/templateService')
+      const { processDocxTemplate } = await import('@/utils/docxProcessor')
+      const tpl = await svc.getTemplateById(bridge.pending.templateId)
+      if (!tpl) throw new Error('Template tidak ditemukan')
+
+      // If a commit callback is provided, run it to consume the nomor surat
+      // counter and obtain the final values. Otherwise fall back to the
+      // preview values (legacy / no-side-effect download).
+      let finalValues = bridge.pending.values
+      let finalPemohon = bridge.pending.pemohonName ?? ''
+      if (bridge.pending.commit) {
+        const committed = await bridge.pending.commit()
+        finalValues = committed.values
+        finalPemohon = committed.pemohonName || finalPemohon
+      }
+
+      // Re-render the docx with committed values (nomor surat now points to
+      // the consumed counter slot, not the preview snapshot).
+      const bytes = await svc.getTemplateBlob(tpl.file_path)
+      const finalBuf = await processDocxTemplate(bytes, finalValues)
+
+      const filename = buildLetterFilename({
+        templateName: bridge.pending.templateName || tpl.nama,
+        pemohonName: finalPemohon,
+      })
+
       const { downloadDocx } = await import('@/utils/docxProcessor')
-      const filename = bridge.filename || 'surat.docx'
-      const dl = await downloadDocx(arrayBuf, filename)
+      const dl = await downloadDocx(finalBuf, filename)
       if (dl.saved) {
         toast.success('Surat berhasil disimpan', { description: filename })
         bridge.setOpen(false)
