@@ -16,6 +16,7 @@ import { useTheme } from '@/context/theme-provider'
 import { useNavigationContext } from '@/lib/router'
 import { getDisplayName } from '@/services/authService'
 import { getDisplayNameInitials } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { useAI } from '@/contexts/AIContext'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -152,11 +153,14 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300"
+        className={cn(
+          'h-8 w-8 rounded-full text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300',
+          ai.credentials && 'ai-shine-button',
+        )}
         onClick={() => ai.openDrawer({ mode: 'chat' })}
-        title="Asisten AI"
+        title={ai.credentials ? 'Asisten AI' : 'AI belum aktif — buka Pengaturan AI'}
       >
-        <Sparkles className="h-4 w-4" />
+        <Sparkles className={cn('h-4 w-4', ai.credentials && 'ai-shine-icon')} />
       </Button>
 
       {/* Clock */}
