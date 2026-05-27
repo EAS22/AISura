@@ -16,11 +16,14 @@ import {
 import { extractCleanText } from '@/utils/docxCleaner'
 import { normalizeText } from '@/utils/textNormalizer'
 
-interface Suggestion {
+interface RawSuggestion {
   originalText: string
   suggestedToken: string
-  category: 'warga' | 'perangkat_desa' | 'desa' | 'nomor_surat' | 'custom'
   reason: string
+}
+
+interface Suggestion extends RawSuggestion {
+  category: 'warga' | 'perangkat_desa' | 'desa' | 'nomor_surat' | 'custom'
 }
 
 interface SuggestionResult {
@@ -92,8 +95,6 @@ export function TemplateSuggesterPanel() {
       setError('AI belum dikonfigurasi. Aktifkan AI di Pengaturan dulu.')
       return
     }
-    // Sanitasi terakhir sebelum kirim — text sudah di-normalize saat extract,
-    // tapi kalau user paste manual ke textarea kita sanitize lagi.
     const cleaned = normalizeText(text.trim())
     const sanitized = sanitizeText(cleaned)
     if (sanitized.length < 30) {
@@ -106,17 +107,14 @@ export function TemplateSuggesterPanel() {
     try {
       const userPrompt = buildUserPrompt(validTokens, sanitized, existingClassification.recognized, existingClassification.unknown)
 
-      // Try with json_object response_format first (faster, cleaner output).
-      // If model returns empty content, retry without response_format and
-      // extract JSON from free-form response. Some Groq models occasionally
-      // produce empty content when response_format is forced.
+      // Try with json_object response_format first.
       const baseRequest = {
         messages: [
           { role: 'system' as const, content: TEMPLATE_SUGGEST_SYSTEM_PROMPT },
           { role: 'user' as const, content: userPrompt },
         ],
         temperature: 0.2,
-        max_tokens: 4000,
+        max_tokens: 6000,
       }
 
       let resp = await chatCompletion(ai.credentials, {
@@ -138,7 +136,7 @@ export function TemplateSuggesterPanel() {
         })
         setError(
           `AI tidak menghasilkan output. Finish reason: ${resp.finishReason}. ` +
-          'Coba ganti model di Pengaturan AI atau kurangi panjang template.',
+          'Coba ganti model di Pengaturan AI atau pakai template yang lebih pendek.',
         )
         return
       }
@@ -146,17 +144,22 @@ export function TemplateSuggesterPanel() {
       const parsed = parseSuggestionJson(raw)
       if (!parsed) {
         console.error('[TemplateSuggester] AI response is not valid JSON', {
-          raw,
+          rawSample: raw.slice(0, 500),
+          rawLength: raw.length,
           finishReason: resp.finishReason,
-          length: raw.length,
         })
-        setError('Respons AI bukan JSON yang valid. Coba ulangi atau ganti model.')
+        setError(
+          resp.finishReason === 'length'
+            ? 'Output AI terpotong (max_tokens habis). Coba template yang lebih pendek atau model dengan output token lebih besar.'
+            : 'Respons AI bukan JSON yang valid. Coba ulangi atau ganti model.',
+        )
         return
       }
-      // Filter saran yang token-nya sudah ada di template (kecuali untuk
-      // saran koreksi terhadap unknown placeholder).
       const filtered = filterRedundantSuggestions(parsed.suggestions, existingClassification)
-      setResult({ suggestions: filtered, notes: parsed.notes })
+      // Annotate kategori di client (derived dari token, bukan dari AI output)
+      // sehingga AI tidak perlu emit field kategori → token output lebih sedikit.
+      const withCategory = filtered.map(annotateCategory)
+      setResult({ suggestions: withCategory, notes: parsed.notes })
     } catch (err) {
       console.error('[TemplateSuggester] handleSuggest error', err)
       const message = err instanceof Error ? err.message : String(err)
@@ -362,31 +365,40 @@ function buildUserPrompt(
   unknown: string[],
 ): string {
   const parts = [
-    'Tugas: analisa template surat berikut dan kembalikan saran placeholder dalam format JSON.',
-    `VALID_TOKENS:\n${JSON.stringify(validTokens)}`,
+    'Analisa template berikut dan kembalikan JSON saran placeholder.',
+    `VALID_TOKENS: ${validTokens.join(', ')}`,
   ]
   if (recognized.length > 0) {
-    parts.push(`EXISTING_PLACEHOLDERS_OK (sudah dikenali, JANGAN duplikasi):\n${JSON.stringify(recognized)}`)
+    parts.push(`SUDAH ADA (skip): ${recognized.join(', ')}`)
   }
   if (unknown.length > 0) {
-    parts.push(
-      `EXISTING_PLACEHOLDERS_UNKNOWN (format tidak dikenal, sarankan koreksi ke VALID_TOKENS yang sesuai):\n${JSON.stringify(unknown)}`,
-    )
+    parts.push(`KOREKSI (format lama, sarankan ke VALID_TOKENS yang setara): ${unknown.join(', ')}`)
   }
-  parts.push(`TEMPLATE_TEXT (sudah dibersihkan dari styling, NIK di-mask):\n"""\n${templateText}\n"""`)
-  parts.push(
-    'Kembalikan JSON object dengan field "suggestions" (array) dan optional "notes" (string). Maksimal 30 saran.',
-  )
+  parts.push(`TEMPLATE:\n"""\n${templateText}\n"""`)
+  parts.push('Output: hanya JSON object {"suggestions":[...],"notes":"..."}.')
   return parts.join('\n\n')
 }
 
+/**
+ * Derive kategori dari token (bukan dari AI output) sehingga AI tidak perlu
+ * emit field kategori → menghemat output tokens.
+ */
+function annotateCategory(s: RawSuggestion): Suggestion {
+  const inner = s.suggestedToken.replace(/^\{|\}$/g, '').replace(/_(U|L|P)$/, '')
+  let category: Suggestion['category'] = 'custom'
+  if (/^W\d+_/.test(inner)) category = 'warga'
+  else if (/^PD\d+_/.test(inner) || inner in PERANGKAT_DESA_ALIASES) category = 'perangkat_desa'
+  else if (DESA_TOKENS.includes(inner)) category = 'desa'
+  else if (/^N\d+_/.test(inner) || inner === 'NOMOR_SURAT' || NOMOR_SURAT_FIELDS.includes(inner as never)) category = 'nomor_surat'
+  return { ...s, category }
+}
+
 function filterRedundantSuggestions(
-  suggestions: Suggestion[],
+  suggestions: RawSuggestion[],
   classification: { recognized: string[]; unknown: string[] },
-): Suggestion[] {
+): RawSuggestion[] {
   const recognizedBase = new Set<string>()
   for (const tok of classification.recognized) {
-    // store both with and without modifier suffix for matching
     recognizedBase.add(tok)
     recognizedBase.add(tok.replace(/_(U|L|P)\}$/, '}'))
   }
@@ -394,8 +406,6 @@ function filterRedundantSuggestions(
     const tokBase = s.suggestedToken.replace(/_(U|L|P)\}$/, '}')
     if (recognizedBase.has(s.suggestedToken)) return false
     if (recognizedBase.has(tokBase)) {
-      // Allowed only if originalText explicitly references one of the unknown tokens
-      // (i.e. AI is mapping a legacy {NAMA_WARGA} → {W1_NAMA}).
       const refersToUnknown = classification.unknown.some((u) => s.originalText.includes(u))
       return refersToUnknown
     }
@@ -403,47 +413,126 @@ function filterRedundantSuggestions(
   })
 }
 
-function parseSuggestionJson(text: string): SuggestionResult | null {
-  // Try direct parse
-  const tryParse = (s: string): SuggestionResult | null => {
-    try {
-      const obj = JSON.parse(s) as { suggestions?: unknown; notes?: unknown }
-      if (!obj || typeof obj !== 'object') return null
-      const arr = Array.isArray(obj.suggestions) ? obj.suggestions : []
-      const filtered: Suggestion[] = []
-      for (const item of arr) {
-        if (!item || typeof item !== 'object') continue
-        const it = item as Record<string, unknown>
-        const orig = String(it.originalText ?? '').trim()
-        const tok = String(it.suggestedToken ?? '').trim()
-        const reason = String(it.reason ?? '').trim()
-        const cat = String(it.category ?? 'custom').trim()
-        if (!orig || !tok) continue
-        filtered.push({
-          originalText: orig,
-          suggestedToken: tok.startsWith('{') ? tok : `{${tok}}`,
-          category: (['warga', 'perangkat_desa', 'desa', 'nomor_surat', 'custom'].includes(cat)
-            ? (cat as Suggestion['category'])
-            : 'custom'),
-          reason: reason || '',
-        })
-      }
-      return {
-        suggestions: filtered,
-        notes: typeof obj.notes === 'string' ? obj.notes : undefined,
-      }
-    } catch {
-      return null
-    }
-  }
+interface RawSuggestionResult {
+  suggestions: RawSuggestion[]
+  notes?: string
+}
 
-  const direct = tryParse(text)
+/**
+ * Parse JSON from AI output. Tolerant of:
+ *   - Pure JSON
+ *   - JSON wrapped in markdown ```json ... ``` fence
+ *   - JSON preceded/followed by free-form text
+ *   - Partial JSON (truncated by max_tokens) — recover the complete
+ *     `suggestions` array entries that were finished before the cut.
+ */
+function parseSuggestionJson(text: string): RawSuggestionResult | null {
+  const cleaned = text.trim()
+  if (!cleaned) return null
+
+  // Strip markdown code fence kalau ada.
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const candidate = fenceMatch ? fenceMatch[1].trim() : cleaned
+
+  // Direct parse first.
+  const direct = tryParse(candidate)
   if (direct) return direct
 
-  // Try extracting first {...} block
-  const match = text.match(/\{[\s\S]*\}/)
-  if (match) {
-    return tryParse(match[0])
+  // Find first {...} block (greedy from first {) and try parse.
+  const firstBrace = candidate.indexOf('{')
+  if (firstBrace === -1) return null
+  const candidateFromBrace = candidate.slice(firstBrace)
+
+  const fromBrace = tryParse(candidateFromBrace)
+  if (fromBrace) return fromBrace
+
+  // Last resort: partial recovery. Output mungkin terpotong di tengah
+  // suggestions array karena max_tokens. Cari array suggestions yang complete.
+  return recoverPartialJson(candidateFromBrace)
+}
+
+function tryParse(s: string): RawSuggestionResult | null {
+  try {
+    const obj = JSON.parse(s) as { suggestions?: unknown; notes?: unknown }
+    if (!obj || typeof obj !== 'object') return null
+    const arr = Array.isArray(obj.suggestions) ? obj.suggestions : []
+    const filtered: RawSuggestion[] = []
+    for (const item of arr) {
+      const sug = coerceSuggestion(item)
+      if (sug) filtered.push(sug)
+    }
+    return {
+      suggestions: filtered,
+      notes: typeof obj.notes === 'string' ? obj.notes : undefined,
+    }
+  } catch {
+    return null
   }
-  return null
+}
+
+function coerceSuggestion(item: unknown): RawSuggestion | null {
+  if (!item || typeof item !== 'object') return null
+  const it = item as Record<string, unknown>
+  const orig = String(it.originalText ?? '').trim()
+  const tok = String(it.suggestedToken ?? '').trim()
+  const reason = String(it.reason ?? '').trim()
+  if (!orig || !tok) return null
+  return {
+    originalText: orig,
+    suggestedToken: tok.startsWith('{') ? tok : `{${tok}}`,
+    reason: reason || '',
+  }
+}
+
+/**
+ * Recover suggestion items from a JSON string that was cut off by
+ * max_tokens. Strategy: scan for "suggestions": [ then read complete
+ * objects {...} one-by-one, stopping at the first incomplete one.
+ */
+function recoverPartialJson(text: string): RawSuggestionResult | null {
+  const arrayStart = text.indexOf('"suggestions"')
+  if (arrayStart === -1) return null
+  const bracketStart = text.indexOf('[', arrayStart)
+  if (bracketStart === -1) return null
+
+  const items: RawSuggestion[] = []
+  let i = bracketStart + 1
+  while (i < text.length) {
+    // Skip whitespace and commas.
+    while (i < text.length && /[\s,]/.test(text[i])) i++
+    if (i >= text.length) break
+    if (text[i] === ']') break
+    if (text[i] !== '{') break
+    // Walk forward tracking brace depth + string state to find a balanced {...}.
+    const objStart = i
+    let depth = 0
+    let inString = false
+    let escape = false
+    let objEnd = -1
+    for (let j = i; j < text.length; j++) {
+      const ch = text[j]
+      if (escape) { escape = false; continue }
+      if (ch === '\\') { escape = true; continue }
+      if (ch === '"') { inString = !inString; continue }
+      if (inString) continue
+      if (ch === '{') depth++
+      else if (ch === '}') {
+        depth--
+        if (depth === 0) { objEnd = j; break }
+      }
+    }
+    if (objEnd === -1) break // truncated mid-object
+    const objStr = text.slice(objStart, objEnd + 1)
+    try {
+      const item = JSON.parse(objStr)
+      const coerced = coerceSuggestion(item)
+      if (coerced) items.push(coerced)
+    } catch {
+      // skip malformed item
+    }
+    i = objEnd + 1
+  }
+
+  if (items.length === 0) return null
+  return { suggestions: items, notes: '(Output AI terpotong, hanya saran lengkap yang ditampilkan.)' }
 }
