@@ -2,7 +2,18 @@ import { useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Upload, Wand2, FileText, Copy, Check, AlertCircle, Eye, EyeOff, StopCircle } from 'lucide-react'
+import {
+  Upload,
+  Wand2,
+  FileText,
+  Copy,
+  Check,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  StopCircle,
+  ClipboardCopy,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAI } from '@/contexts/AIContext'
 import { TEMPLATE_SUGGEST_SYSTEM_PROMPT, sanitizeText, streamChatCompletion } from '@/services/ai'
@@ -19,7 +30,6 @@ import { normalizeText } from '@/utils/textNormalizer'
 interface RawSuggestion {
   originalText: string
   suggestedToken: string
-  reason: string
 }
 
 interface Suggestion extends RawSuggestion {
@@ -28,8 +38,9 @@ interface Suggestion extends RawSuggestion {
 
 interface SuggestionResult {
   suggestions: Suggestion[]
-  notes?: string
 }
+
+const MAX_SUGGESTIONS = 8
 
 export function TemplateSuggesterPanel() {
   const ai = useAI()
@@ -40,9 +51,10 @@ export function TemplateSuggesterPanel() {
   const [warnings, setWarnings] = useState<string[]>([])
   const [result, setResult] = useState<SuggestionResult | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [copiedAll, setCopiedAll] = useState(false)
   const [existingPlaceholders, setExistingPlaceholders] = useState<string[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
-  // Streaming progress state (token byte counter while AI is generating)
+  // Streaming progress (chars received) + elapsed seconds.
   const [progressBytes, setProgressBytes] = useState(0)
   const [elapsedSec, setElapsedSec] = useState(0)
   const abortRef = useRef<AbortController | null>(null)
@@ -59,7 +71,6 @@ export function TemplateSuggesterPanel() {
     const recognized: string[] = []
     const unknown: string[] = []
     for (const tok of existingPlaceholders) {
-      // strip optional _U/_L/_P modifier when checking validity
       const baseToken = tok.replace(/_(U|L|P)\}$/, '}')
       if (valid.has(tok) || valid.has(baseToken)) {
         recognized.push(tok)
@@ -125,21 +136,22 @@ export function TemplateSuggesterPanel() {
     }, 250)
 
     try {
-      const userPrompt = buildUserPrompt(validTokens, sanitized, existingClassification.recognized, existingClassification.unknown)
+      const userPrompt = buildUserPrompt(
+        validTokens,
+        sanitized,
+        existingClassification.recognized,
+        existingClassification.unknown,
+      )
 
-      // Streaming chat completion: token-by-token progress feedback so user
-      // doesn't think the app is stuck. Total time same as non-streaming, but
-      // perceived latency is much better.
+      // Line-based output is much shorter than JSON: ~30 char × 8 saran ≈ 240
+      // chars ≈ 80 tokens. Start with a tight budget; escalate only if empty.
       const baseRequest = {
         messages: [
           { role: 'system' as const, content: TEMPLATE_SUGGEST_SYSTEM_PROMPT },
           { role: 'user' as const, content: userPrompt },
         ],
         temperature: 0.2,
-        // Default budget tighter (2500 ≈ ~10-12 saran with compact schema).
-        // Provider rate-limits scale with max_tokens so a smaller cap is
-        // noticeably faster on Groq and similar.
-        max_tokens: 2500,
+        max_tokens: 1000,
       }
 
       const onDelta = (chunk: string) => {
@@ -154,36 +166,18 @@ export function TemplateSuggesterPanel() {
       )
       let raw = resp.message.content || ''
 
-      // If empty, retry without any constraints (some models occasionally
-      // emit empty content; rare but still possible).
+      // If empty, retry once with bigger budget (some models occasionally
+      // emit empty content even though they had room).
       if (!raw.trim()) {
         console.warn('[TemplateSuggester] empty stream output, retrying with bigger budget')
         setProgressBytes(0)
         resp = await streamChatCompletion(
           ai.credentials,
-          { ...baseRequest, max_tokens: 4000 },
+          { ...baseRequest, max_tokens: 2500 },
           onDelta,
           controller.signal,
         )
         raw = resp.message.content || ''
-      }
-
-      // If finishReason=length and recovery yields very few items, retry once
-      // with bigger budget to get the full set.
-      if (resp.finishReason === 'length') {
-        const partialParse = parseSuggestionJson(raw)
-        const partialCount = partialParse?.suggestions.length ?? 0
-        if (partialCount < 5) {
-          console.warn('[TemplateSuggester] truncated with few items, retrying with bigger budget', { partialCount })
-          setProgressBytes(0)
-          resp = await streamChatCompletion(
-            ai.credentials,
-            { ...baseRequest, max_tokens: 6000 },
-            onDelta,
-            controller.signal,
-          )
-          raw = resp.message.content || ''
-        }
       }
 
       if (!raw.trim()) {
@@ -193,30 +187,31 @@ export function TemplateSuggesterPanel() {
         })
         setError(
           `AI tidak menghasilkan output. Finish reason: ${resp.finishReason}. ` +
-          'Coba ganti model di Pengaturan AI atau pakai template yang lebih pendek.',
+            'Coba ganti model di Pengaturan AI atau pakai template yang lebih pendek.',
         )
         return
       }
 
-      const parsed = parseSuggestionJson(raw)
-      if (!parsed) {
-        console.error('[TemplateSuggester] AI response is not valid JSON', {
+      const parsed = parseLineBasedSuggestions(raw, validTokens)
+      if (parsed.length === 0) {
+        console.error('[TemplateSuggester] no valid line-based suggestions parsed', {
           rawSample: raw.slice(0, 500),
           rawLength: raw.length,
           finishReason: resp.finishReason,
         })
         setError(
-          resp.finishReason === 'length'
-            ? 'Output AI terpotong (max_tokens habis). Coba template yang lebih pendek atau model dengan output token lebih besar.'
-            : 'Respons AI bukan JSON yang valid. Coba ulangi atau ganti model.',
+          'AI tidak mengembalikan saran dengan format yang dikenali. Coba ulangi atau ganti model.',
         )
         return
       }
-      const filtered = filterRedundantSuggestions(parsed.suggestions, existingClassification)
+
+      const filtered = filterRedundantSuggestions(parsed, existingClassification).slice(
+        0,
+        MAX_SUGGESTIONS,
+      )
       const withCategory = filtered.map(annotateCategory)
-      setResult({ suggestions: withCategory, notes: parsed.notes })
+      setResult({ suggestions: withCategory })
     } catch (err) {
-      // Abort = user clicked Stop, not an error
       if (err instanceof DOMException && err.name === 'AbortError') {
         console.info('[TemplateSuggester] aborted by user')
         setError('Dibatalkan oleh user.')
@@ -232,11 +227,25 @@ export function TemplateSuggesterPanel() {
     }
   }
 
-  const handleCopy = async (token: string) => {
+  const handleCopyToken = async (token: string) => {
     try {
       await navigator.clipboard.writeText(token)
       setCopiedToken(token)
       setTimeout(() => setCopiedToken(null), 1500)
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const handleCopyAll = async () => {
+    if (!result) return
+    const blob = result.suggestions
+      .map((s) => `${s.originalText} => ${s.suggestedToken}`)
+      .join('\n')
+    try {
+      await navigator.clipboard.writeText(blob)
+      setCopiedAll(true)
+      setTimeout(() => setCopiedAll(false), 1800)
     } catch {
       /* ignore */
     }
@@ -342,25 +351,57 @@ export function TemplateSuggesterPanel() {
 
         {result && (
           <div className="space-y-3">
-            {result.notes && (
-              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">{result.notes}</div>
-            )}
             {result.suggestions.length === 0 ? (
               <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
                 AI tidak menemukan kandidat placeholder yang perlu ditambahkan.
               </div>
             ) : (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">{result.suggestions.length} saran:</p>
-                {result.suggestions.map((s, i) => (
-                  <SuggestionRow
-                    key={`${s.suggestedToken}-${i}`}
-                    suggestion={s}
-                    onCopy={handleCopy}
-                    isCopied={copiedToken === s.suggestedToken}
-                  />
-                ))}
-              </div>
+              <>
+                {/* Code block + Copy semua */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {result.suggestions.length} saran (klik "Copy semua" untuk paste ke template):
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCopyAll}
+                      className="h-7 px-2 text-xs"
+                    >
+                      {copiedAll ? (
+                        <>
+                          <Check className="mr-1 h-3.5 w-3.5 text-emerald-500" />
+                          Tersalin
+                        </>
+                      ) : (
+                        <>
+                          <ClipboardCopy className="mr-1 h-3.5 w-3.5" />
+                          Copy semua
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <pre className="max-h-64 overflow-auto rounded-md border bg-muted/30 p-3 font-data-number text-[11px] leading-relaxed whitespace-pre-wrap break-all">
+                    {result.suggestions
+                      .map((s) => `${s.originalText} => ${s.suggestedToken}`)
+                      .join('\n')}
+                  </pre>
+                </div>
+
+                {/* Structured list with category badges, supports per-token copy */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Detail per saran:</p>
+                  {result.suggestions.map((s, i) => (
+                    <SuggestionRow
+                      key={`${s.suggestedToken}-${i}`}
+                      suggestion={s}
+                      onCopy={handleCopyToken}
+                      isCopied={copiedToken === s.suggestedToken}
+                    />
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -386,14 +427,19 @@ function SuggestionRow({
           <Badge className={cn('rounded-full font-data-number', tone.badge)}>{suggestion.suggestedToken}</Badge>
           <Badge variant="outline" className="rounded-full">{suggestion.category}</Badge>
         </div>
-        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => onCopy(suggestion.suggestedToken)} title="Salin">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-6 w-6"
+          onClick={() => onCopy(suggestion.suggestedToken)}
+          title="Salin token"
+        >
           {isCopied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
         </Button>
       </div>
       <p className="mt-2 text-foreground/90">
         Ganti: <span className="font-medium">"{suggestion.originalText}"</span>
       </p>
-      <p className="mt-1 text-muted-foreground">{suggestion.reason}</p>
     </div>
   )
 }
@@ -437,18 +483,74 @@ function buildUserPrompt(
   unknown: string[],
 ): string {
   const parts = [
-    'Analisa template berikut dan kembalikan JSON saran placeholder.',
+    'Analisa template berikut dan kembalikan saran placeholder dalam format <text> => {TOKEN}, satu saran per baris, maksimal 8 baris.',
     `VALID_TOKENS: ${validTokens.join(', ')}`,
   ]
   if (recognized.length > 0) {
-    parts.push(`SUDAH ADA (skip): ${recognized.join(', ')}`)
+    parts.push(`SUDAH_ADA (skip): ${recognized.join(', ')}`)
   }
   if (unknown.length > 0) {
     parts.push(`KOREKSI (format lama, sarankan ke VALID_TOKENS yang setara): ${unknown.join(', ')}`)
   }
   parts.push(`TEMPLATE:\n"""\n${templateText}\n"""`)
-  parts.push('Output: hanya JSON object {"suggestions":[...],"notes":"..."}.')
+  parts.push('Output: hanya baris-baris <text> => {TOKEN}. JANGAN tulis JSON, markdown, atau penjelasan.')
   return parts.join('\n\n')
+}
+
+/**
+ * Parse line-based AI output. Each valid line follows:
+ *   <original text> => {TOKEN}
+ *
+ * Tolerant of:
+ *   - leading list bullets (-, *, 1., 1))
+ *   - leading "•"
+ *   - markdown wrappers (```...``` fence) — strip and process inside
+ *   - extra commentary lines (skipped silently)
+ *   - quoted original text ("AAD HENRAYANA" => {W1_NAMA})
+ *   - tokens without curly braces (W1_NAMA → wrapped to {W1_NAMA})
+ */
+function parseLineBasedSuggestions(raw: string, validTokens: string[]): RawSuggestion[] {
+  // Strip code fences if any.
+  const stripped = raw.replace(/```(?:[a-zA-Z]+)?\s*/g, '').replace(/```/g, '')
+
+  const validSet = new Set(validTokens)
+  // Match "<text> => {TOKEN}" with optional braces and modifier suffix.
+  // Also accept "→" or "->" as separators (some models prefer those).
+  const lineRe = /^(.+?)\s*(?:=>|->|→)\s*\{?([A-Z][A-Z0-9_]*)\}?\s*$/
+
+  const out: RawSuggestion[] = []
+  const seen = new Set<string>()
+
+  for (const rawLine of stripped.split(/\r?\n/)) {
+    // Strip leading bullets/numbering and surrounding quotes.
+    const line = rawLine
+      .replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '')
+      .trim()
+    if (!line) continue
+
+    const m = line.match(lineRe)
+    if (!m) continue
+
+    let originalText = m[1].trim()
+    // Strip surrounding quotes if any.
+    originalText = originalText.replace(/^["'`]+|["'`]+$/g, '').trim()
+    if (!originalText) continue
+    // Cap originalText length (defensive — models sometimes emit long stuff).
+    if (originalText.length > 120) originalText = originalText.slice(0, 120)
+
+    const inner = m[2].trim()
+    const candidate = `{${inner}}`
+    // Validate: must match a known VALID_TOKEN, optionally with _U/_L/_P suffix.
+    const baseCandidate = candidate.replace(/_(U|L|P)\}$/, '}')
+    if (!validSet.has(candidate) && !validSet.has(baseCandidate)) continue
+
+    const dedupeKey = `${originalText.toLowerCase()}::${candidate}`
+    if (seen.has(dedupeKey)) continue
+    seen.add(dedupeKey)
+
+    out.push({ originalText, suggestedToken: candidate })
+  }
+  return out
 }
 
 /**
@@ -483,128 +585,4 @@ function filterRedundantSuggestions(
     }
     return true
   })
-}
-
-interface RawSuggestionResult {
-  suggestions: RawSuggestion[]
-  notes?: string
-}
-
-/**
- * Parse JSON from AI output. Tolerant of:
- *   - Pure JSON
- *   - JSON wrapped in markdown ```json ... ``` fence
- *   - JSON preceded/followed by free-form text
- *   - Partial JSON (truncated by max_tokens) — recover the complete
- *     `suggestions` array entries that were finished before the cut.
- */
-function parseSuggestionJson(text: string): RawSuggestionResult | null {
-  const cleaned = text.trim()
-  if (!cleaned) return null
-
-  // Strip markdown code fence kalau ada.
-  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const candidate = fenceMatch ? fenceMatch[1].trim() : cleaned
-
-  // Direct parse first.
-  const direct = tryParse(candidate)
-  if (direct) return direct
-
-  // Find first {...} block (greedy from first {) and try parse.
-  const firstBrace = candidate.indexOf('{')
-  if (firstBrace === -1) return null
-  const candidateFromBrace = candidate.slice(firstBrace)
-
-  const fromBrace = tryParse(candidateFromBrace)
-  if (fromBrace) return fromBrace
-
-  // Last resort: partial recovery. Output mungkin terpotong di tengah
-  // suggestions array karena max_tokens. Cari array suggestions yang complete.
-  return recoverPartialJson(candidateFromBrace)
-}
-
-function tryParse(s: string): RawSuggestionResult | null {
-  try {
-    const obj = JSON.parse(s) as { suggestions?: unknown; notes?: unknown }
-    if (!obj || typeof obj !== 'object') return null
-    const arr = Array.isArray(obj.suggestions) ? obj.suggestions : []
-    const filtered: RawSuggestion[] = []
-    for (const item of arr) {
-      const sug = coerceSuggestion(item)
-      if (sug) filtered.push(sug)
-    }
-    return {
-      suggestions: filtered,
-      notes: typeof obj.notes === 'string' ? obj.notes : undefined,
-    }
-  } catch {
-    return null
-  }
-}
-
-function coerceSuggestion(item: unknown): RawSuggestion | null {
-  if (!item || typeof item !== 'object') return null
-  const it = item as Record<string, unknown>
-  const orig = String(it.originalText ?? '').trim()
-  const tok = String(it.suggestedToken ?? '').trim()
-  const reason = String(it.reason ?? '').trim()
-  if (!orig || !tok) return null
-  return {
-    originalText: orig,
-    suggestedToken: tok.startsWith('{') ? tok : `{${tok}}`,
-    reason: reason || '',
-  }
-}
-
-/**
- * Recover suggestion items from a JSON string that was cut off by
- * max_tokens. Strategy: scan for "suggestions": [ then read complete
- * objects {...} one-by-one, stopping at the first incomplete one.
- */
-function recoverPartialJson(text: string): RawSuggestionResult | null {
-  const arrayStart = text.indexOf('"suggestions"')
-  if (arrayStart === -1) return null
-  const bracketStart = text.indexOf('[', arrayStart)
-  if (bracketStart === -1) return null
-
-  const items: RawSuggestion[] = []
-  let i = bracketStart + 1
-  while (i < text.length) {
-    // Skip whitespace and commas.
-    while (i < text.length && /[\s,]/.test(text[i])) i++
-    if (i >= text.length) break
-    if (text[i] === ']') break
-    if (text[i] !== '{') break
-    // Walk forward tracking brace depth + string state to find a balanced {...}.
-    const objStart = i
-    let depth = 0
-    let inString = false
-    let escape = false
-    let objEnd = -1
-    for (let j = i; j < text.length; j++) {
-      const ch = text[j]
-      if (escape) { escape = false; continue }
-      if (ch === '\\') { escape = true; continue }
-      if (ch === '"') { inString = !inString; continue }
-      if (inString) continue
-      if (ch === '{') depth++
-      else if (ch === '}') {
-        depth--
-        if (depth === 0) { objEnd = j; break }
-      }
-    }
-    if (objEnd === -1) break // truncated mid-object
-    const objStr = text.slice(objStart, objEnd + 1)
-    try {
-      const item = JSON.parse(objStr)
-      const coerced = coerceSuggestion(item)
-      if (coerced) items.push(coerced)
-    } catch {
-      // skip malformed item
-    }
-    i = objEnd + 1
-  }
-
-  if (items.length === 0) return null
-  return { suggestions: items, notes: '(Output AI terpotong, hanya saran lengkap yang ditampilkan.)' }
 }

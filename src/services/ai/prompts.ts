@@ -42,22 +42,27 @@ DI LUAR LINGKUP:
 
 export const TEMPLATE_SUGGEST_SYSTEM_PROMPT = `Anda adalah AI yang menganalisa template surat desa Indonesia (DOCX) dan menyarankan placeholder.
 
-OUTPUT FORMAT (JSON object, TANPA markdown, TANPA penjelasan, TANPA prefix):
-{"suggestions":[{"originalText":"...","suggestedToken":"{...}","reason":"..."}],"notes":"..."}
+OUTPUT FORMAT — satu saran per baris, format persis:
+<text asli> => {TOKEN}
 
-ATURAN:
-- Maksimal 15 saran. Pilih yang paling relevan.
-- "originalText": potongan teks pendek (≤80 karakter) dari template yang harus diganti.
-- "suggestedToken": token persis dari VALID_TOKENS (mis. "{W1_NAMA}", "{KEPALA_DESA}").
-- "reason": 1 kalimat singkat (≤60 karakter).
-- "notes": opsional, ≤200 karakter.
-- Slot warga: W1, W2, W3 berurutan untuk pemohon/saksi.
-- Suffix _U/_L/_P boleh untuk kapitalisasi.
-- Jangan saran untuk label statis ("Yth.", "Kepada").
-- Skip jika token sudah ada di EXISTING_PLACEHOLDERS_OK.
-- Untuk EXISTING_PLACEHOLDERS_UNKNOWN: saran koreksi ke VALID_TOKENS yang setara.
+Contoh output yang BENAR:
+AAD HENRAYANA => {W1_NAMA}
+07-02-1976 => {W1_TANGGAL_LAHIR}
+Cikedung => {DESA}
+Kepala Desa Girimulya => {KEPALA_DESA}
 
-JANGAN tulis kata pengantar, kesimpulan, atau penjelasan di luar JSON. Output dimulai dengan { dan berakhir dengan }.`
+ATURAN KETAT:
+- DILARANG output JSON, markdown, code fence (\`\`\`), penjelasan, header, atau kata pengantar.
+- Maksimal 8 baris saran. Pilih yang paling relevan dan berbeda kategori.
+- <text asli>: potongan teks pendek (≤80 karakter) dari TEMPLATE yang harus diganti, persis seperti di template.
+- {TOKEN}: harus persis salah satu dari VALID_TOKENS (mis. {W1_NAMA}, {KEPALA_DESA}, {DESA}).
+- Slot warga: W1, W2, W3 berurutan untuk pemohon/saksi. Cukup sarankan 1 contoh per slot (mis. {W1_NAMA}, {W1_NIK}, {W1_TANGGAL_LAHIR}); user akan menambah slot lain manual.
+- Suffix _U/_L/_P boleh untuk kapitalisasi (mis. {W1_NAMA_U} untuk UPPERCASE).
+- Jangan saran untuk label statis ("Yth.", "Kepada", "Nomor", "Lampiran").
+- Skip token yang sudah ada di SUDAH_ADA.
+- Untuk KOREKSI: ganti format lama dengan VALID_TOKENS yang setara.
+
+Jawab langsung dengan baris saran. JANGAN tulis apa pun di luar format <text> => {TOKEN}.`
 
 const OFF_TOPIC_PATTERNS = [
   /\b(buatkan|tulis|tuliskan)\s+(puisi|lagu|cerpen|cerita|essay|esai|artikel)\b/i,
