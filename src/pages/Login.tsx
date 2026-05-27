@@ -105,14 +105,14 @@ export function Login({ isSetup, onSuccess }: LoginProps) {
         <div className="absolute inset-x-8 bottom-10 space-y-3 text-slate-900 [text-shadow:0_1px_2px_rgb(255_255_255_/_0.4)] dark:text-white dark:[text-shadow:0_1px_3px_rgb(0_0_0_/_0.5)]">
           <p className="inline-flex items-center gap-1.5 rounded-full border border-slate-900/15 bg-white/60 px-3 py-1 text-xs font-medium backdrop-blur-md dark:border-white/20 dark:bg-white/10">
             <Sparkles className="h-3.5 w-3.5" />
-            Aplikasi Surat Otomatis Desa
+            Surat Otomatis Desa + AI Agent
           </p>
           <h2 className="text-3xl font-semibold leading-tight tracking-tight xl:text-4xl">
             Operasional surat<br />desa lebih rapi.
           </h2>
           <p className="max-w-md text-sm leading-relaxed text-slate-800 dark:text-white/85">
-            Kelola template DOCX, data warga, nomor surat otomatis,
-            dan riwayat administrasi dalam satu workspace desktop.
+            Kelola template DOCX, data warga, nomor surat otomatis, dan riwayat administrasi —
+            dibantu AI agent untuk pembuatan surat lewat chat dan deteksi placeholder template.
           </p>
         </div>
       </div>

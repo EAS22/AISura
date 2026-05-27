@@ -89,11 +89,12 @@ export function AplikasiPage() {
                       </span>
                       <Badge variant="secondary" className="rounded-full">v{update.currentVersion}</Badge>
                     </div>
-                    <p className="mt-1 text-sm font-medium text-muted-foreground">Aplikasi Surat Otomatis Desa</p>
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">Aplikasi Surat Otomatis Desa + AI Agent</p>
                   </div>
                 </div>
                 <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Sistem desktop untuk mengelola template DOCX, data warga, nomor surat, dan riwayat administrasi desa dalam satu alur kerja.
+                  Sistem desktop untuk mengelola template DOCX, data warga, nomor surat, dan riwayat administrasi desa,
+                  dilengkapi AI agent yang membantu pembuatan surat lewat chat dan menyarankan placeholder pada template baru.
                 </p>
                 <UpdateActionPanel />
               </div>

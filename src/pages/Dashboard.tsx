@@ -59,7 +59,7 @@ export function Dashboard() {
               <Badge className="rounded-full bg-blue-600/10 text-blue-700 hover:bg-blue-600/10 dark:text-blue-300">+{riwayatCount} surat tersimpan</Badge>
               <div>
                 <h2 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">Operasional surat lebih rapi</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Gunakan template DOCX, data warga, nomor surat otomatis, dan riwayat dalam satu workspace desktop.</p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">Template DOCX, data warga, nomor surat otomatis, dan riwayat dalam satu workspace desktop — dibantu AI agent untuk pembuatan surat lewat chat dan saran placeholder template.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => navigate('/template-surat')} variant="outline" className="rounded-xl bg-white/80 dark:bg-zinc-950/60">Kelola Template</Button>
