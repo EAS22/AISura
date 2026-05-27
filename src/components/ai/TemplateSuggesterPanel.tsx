@@ -106,19 +106,50 @@ export function TemplateSuggesterPanel() {
     try {
       const userPrompt = buildUserPrompt(validTokens, sanitized, existingClassification.recognized, existingClassification.unknown)
 
-      const resp = await chatCompletion(ai.credentials, {
+      // Try with json_object response_format first (faster, cleaner output).
+      // If model returns empty content, retry without response_format and
+      // extract JSON from free-form response. Some Groq models occasionally
+      // produce empty content when response_format is forced.
+      const baseRequest = {
         messages: [
-          { role: 'system', content: TEMPLATE_SUGGEST_SYSTEM_PROMPT },
-          { role: 'user', content: userPrompt },
+          { role: 'system' as const, content: TEMPLATE_SUGGEST_SYSTEM_PROMPT },
+          { role: 'user' as const, content: userPrompt },
         ],
-        jsonObjectMode: true,
         temperature: 0.2,
-        max_tokens: 1500,
+        max_tokens: 4000,
+      }
+
+      let resp = await chatCompletion(ai.credentials, {
+        ...baseRequest,
+        jsonObjectMode: true,
       })
-      const raw = resp.message.content || ''
+      let raw = resp.message.content || ''
+
+      if (!raw.trim()) {
+        console.warn('[TemplateSuggester] empty response with json_object mode, retrying without it')
+        resp = await chatCompletion(ai.credentials, baseRequest)
+        raw = resp.message.content || ''
+      }
+
+      if (!raw.trim()) {
+        console.error('[TemplateSuggester] AI returned empty content twice', {
+          finishReason: resp.finishReason,
+          usage: resp.usage,
+        })
+        setError(
+          `AI tidak menghasilkan output. Finish reason: ${resp.finishReason}. ` +
+          'Coba ganti model di Pengaturan AI atau kurangi panjang template.',
+        )
+        return
+      }
+
       const parsed = parseSuggestionJson(raw)
       if (!parsed) {
-        console.error('[TemplateSuggester] AI response is not valid JSON', { raw })
+        console.error('[TemplateSuggester] AI response is not valid JSON', {
+          raw,
+          finishReason: resp.finishReason,
+          length: raw.length,
+        })
         setError('Respons AI bukan JSON yang valid. Coba ulangi atau ganti model.')
         return
       }
@@ -330,7 +361,10 @@ function buildUserPrompt(
   recognized: string[],
   unknown: string[],
 ): string {
-  const parts = [`VALID_TOKENS:\n${JSON.stringify(validTokens)}`]
+  const parts = [
+    'Tugas: analisa template surat berikut dan kembalikan saran placeholder dalam format JSON.',
+    `VALID_TOKENS:\n${JSON.stringify(validTokens)}`,
+  ]
   if (recognized.length > 0) {
     parts.push(`EXISTING_PLACEHOLDERS_OK (sudah dikenali, JANGAN duplikasi):\n${JSON.stringify(recognized)}`)
   }
@@ -340,7 +374,9 @@ function buildUserPrompt(
     )
   }
   parts.push(`TEMPLATE_TEXT (sudah dibersihkan dari styling, NIK di-mask):\n"""\n${templateText}\n"""`)
-  parts.push('Kembalikan JSON sesuai schema. Maksimal 30 saran. Hindari saran yang akan menduplikasi EXISTING_PLACEHOLDERS_OK.')
+  parts.push(
+    'Kembalikan JSON object dengan field "suggestions" (array) dan optional "notes" (string). Maksimal 30 saran.',
+  )
   return parts.join('\n\n')
 }
 
