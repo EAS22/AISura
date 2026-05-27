@@ -185,6 +185,29 @@ export async function initDatabase(): Promise<Database> {
   // pre-1.0.5 builds. We don't read it any more; leaving it untouched is
   // harmless (SQLite ignores extra columns on INSERT we omit).
 
+  // Saved AI provider profiles (so users can switch between multiple
+  // providers/keys easily without re-typing). Active profile is tracked
+  // by ai_config (provider + base_url + api_key + model snapshot).
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS ai_provider_profiles (
+      id TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      provider TEXT NOT NULL,
+      base_url TEXT DEFAULT '',
+      api_key TEXT DEFAULT '',
+      model TEXT DEFAULT '',
+      temperature REAL DEFAULT 0.3,
+      created_at TEXT,
+      updated_at TEXT
+    )
+  `);
+
+  // Migration: add is_favorite column to templates (for Favorit grouping
+  // on Buat Surat page).
+  try {
+    await db.execute(`ALTER TABLE templates ADD COLUMN is_favorite INTEGER DEFAULT 0`);
+  } catch { /* column already exists */ }
+
   return db;
 }
 

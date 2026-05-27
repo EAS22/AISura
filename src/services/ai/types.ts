@@ -43,6 +43,23 @@ export interface AIResolvedCredentials {
   temperature: number
 }
 
+/**
+ * Saved provider profile so user can switch between multiple providers
+ * (mis. Groq + OpenAI + OpenRouter) tanpa re-input setiap kali.
+ * Aktif/tidaknya tercermin dari nilai di ai_config (snapshot field).
+ */
+export interface AIProviderProfile {
+  id: string
+  label: string
+  provider: AIProviderId
+  base_url: string
+  api_key: string
+  model: string
+  temperature: number
+  created_at: string
+  updated_at: string
+}
+
 // Chat message structure compatible with OpenAI Chat Completions API.
 export interface AIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'

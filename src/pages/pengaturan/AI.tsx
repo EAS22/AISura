@@ -18,6 +18,11 @@ import {
   Cpu,
   ListRestart,
   Search,
+  BookmarkPlus,
+  Bookmark,
+  Pencil,
+  Trash2,
+  CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
@@ -25,11 +30,14 @@ import {
   AI_PROVIDER_PRESETS,
   getProviderPreset,
   listModels,
+  listAIProviderProfiles,
+  saveAIProviderProfile,
+  deleteAIProviderProfile,
   saveAIConfig,
   testAIConnection,
 } from '@/services/ai'
 import { useAI } from '@/contexts/AIContext'
-import type { AIProviderId } from '@/services/ai'
+import type { AIProviderId, AIProviderProfile } from '@/services/ai'
 
 export function AIPage() {
   const ai = useAI()
@@ -51,6 +59,29 @@ export function AIPage() {
   const [modelSearch, setModelSearch] = useState('')
   const [modelPickerOpen, setModelPickerOpen] = useState(false)
 
+  // Saved provider profiles
+  const [profiles, setProfiles] = useState<AIProviderProfile[]>([])
+  const [profilesLoading, setProfilesLoading] = useState(false)
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
+  const [profileLabelInput, setProfileLabelInput] = useState('')
+  const [profileDirty, setProfileDirty] = useState<'create' | 'overwrite' | null>(null)
+
+  const reloadProfiles = async () => {
+    setProfilesLoading(true)
+    try {
+      const list = await listAIProviderProfiles()
+      setProfiles(list)
+    } catch (err) {
+      console.error('[AI Settings] failed to load profiles', err)
+    } finally {
+      setProfilesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    reloadProfiles()
+  }, [])
+
   useEffect(() => {
     if (!config) return
     setEnabled(config.enabled)
@@ -63,6 +94,37 @@ export function AIPage() {
   }, [config])
 
   const preset = useMemo(() => getProviderPreset(provider), [provider])
+
+  // Find an exact match between current credentials and a saved profile so
+  // we can highlight it without forcing the user to "select" first.
+  const matchedProfile = useMemo<AIProviderProfile | null>(() => {
+    return (
+      profiles.find(
+        (p) =>
+          p.provider === provider &&
+          p.base_url.trim() === baseUrl.trim() &&
+          p.api_key.trim() === apiKey.trim() &&
+          p.model.trim() === model.trim(),
+      ) ?? null
+    )
+  }, [profiles, provider, baseUrl, apiKey, model])
+
+  // Track if the active profile is "dirty" (current form drifted from saved).
+  useEffect(() => {
+    if (!activeProfileId) {
+      setProfileDirty(null)
+      return
+    }
+    const active = profiles.find((p) => p.id === activeProfileId)
+    if (!active) return
+    const drifted =
+      active.provider !== provider ||
+      active.base_url.trim() !== baseUrl.trim() ||
+      active.api_key.trim() !== apiKey.trim() ||
+      active.model.trim() !== model.trim() ||
+      active.temperature !== temperature
+    setProfileDirty(drifted ? 'overwrite' : null)
+  }, [activeProfileId, profiles, provider, baseUrl, apiKey, model, temperature])
 
   const handleSelectProvider = (id: string) => {
     const next = id as AIProviderId
@@ -155,6 +217,77 @@ export function AIPage() {
     }
   }
 
+  // ----- Provider profiles handlers -----
+
+  const handleApplyProfile = (p: AIProviderProfile) => {
+    setProvider(p.provider)
+    setBaseUrl(p.base_url)
+    setApiKey(p.api_key)
+    setModel(p.model)
+    setTemperature(p.temperature)
+    setActiveProfileId(p.id)
+    setProfileLabelInput(p.label)
+    setProfileDirty(null)
+    setTestResult({ ok: true, msg: `Profil "${p.label}" dimuat. Klik "Simpan pengaturan" untuk mengaktifkan.` })
+  }
+
+  const handleSaveAsNewProfile = async () => {
+    const label = profileLabelInput.trim()
+    if (!label) {
+      setTestResult({ ok: false, msg: 'Beri label dulu untuk profil yang akan disimpan.' })
+      return
+    }
+    try {
+      const saved = await saveAIProviderProfile({
+        label,
+        provider,
+        base_url: baseUrl.trim(),
+        api_key: apiKey.trim(),
+        model: model.trim(),
+        temperature,
+      })
+      await reloadProfiles()
+      setActiveProfileId(saved.id)
+      setProfileDirty(null)
+      setTestResult({ ok: true, msg: `Profil "${label}" disimpan.` })
+    } catch (err) {
+      setTestResult({ ok: false, msg: err instanceof Error ? err.message : 'Gagal menyimpan profil' })
+    }
+  }
+
+  const handleOverwriteProfile = async () => {
+    if (!activeProfileId) return
+    const label = profileLabelInput.trim() || profiles.find((p) => p.id === activeProfileId)?.label || 'Profil'
+    try {
+      await saveAIProviderProfile({
+        id: activeProfileId,
+        label,
+        provider,
+        base_url: baseUrl.trim(),
+        api_key: apiKey.trim(),
+        model: model.trim(),
+        temperature,
+      })
+      await reloadProfiles()
+      setProfileDirty(null)
+      setTestResult({ ok: true, msg: `Profil "${label}" diperbarui.` })
+    } catch (err) {
+      setTestResult({ ok: false, msg: err instanceof Error ? err.message : 'Gagal memperbarui profil' })
+    }
+  }
+
+  const handleDeleteProfile = async (p: AIProviderProfile) => {
+    if (!confirm(`Hapus profil "${p.label}"? Data kredensial akan hilang dari aplikasi.`)) return
+    try {
+      await deleteAIProviderProfile(p.id)
+      if (activeProfileId === p.id) setActiveProfileId(null)
+      await reloadProfiles()
+      setTestResult({ ok: true, msg: `Profil "${p.label}" dihapus.` })
+    } catch (err) {
+      setTestResult({ ok: false, msg: err instanceof Error ? err.message : 'Gagal menghapus profil' })
+    }
+  }
+
   return (
     <div className={crmShell.page}>
       <div>
@@ -237,6 +370,136 @@ export function AIPage() {
                 </label>
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Saved provider profiles */}
+      <Card className={crmShell.card}>
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600/10 text-blue-600">
+              <Bookmark className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <CardTitle className="text-sm">Provider Tersimpan</CardTitle>
+              <CardDescription>
+                Simpan kombinasi provider + API key + model sebagai profil agar bisa berpindah cepat
+                tanpa input ulang.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {profiles.length === 0 ? (
+            <p className="rounded-md border border-dashed bg-muted/30 px-3 py-4 text-center text-xs text-muted-foreground">
+              {profilesLoading ? 'Memuat profil…' : 'Belum ada profil tersimpan. Isi kredensial di bawah, beri label, lalu klik “Simpan sebagai profil baru”.'}
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2">
+              {profiles.map((p) => {
+                const isMatched = matchedProfile?.id === p.id
+                const isActive = activeProfileId === p.id
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      'flex flex-col gap-2 rounded-xl border p-3 text-xs transition-colors',
+                      isMatched
+                        ? 'border-blue-300 bg-blue-50/70 dark:border-blue-800 dark:bg-blue-950/30'
+                        : 'border-slate-200/80 bg-background dark:border-slate-800',
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">
+                          {p.label}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {getProviderPreset(p.provider).label}
+                          {p.model ? ` · ${p.model}` : ''}
+                        </p>
+                      </div>
+                      {isMatched && (
+                        <Badge className="rounded-full bg-blue-600/10 text-blue-700 hover:bg-blue-600/10 dark:text-blue-300">
+                          <CheckCircle2 className="mr-1 h-3 w-3" />
+                          Aktif
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="truncate text-[10px] text-muted-foreground">
+                      {p.base_url || '(default base URL)'} · key {p.api_key ? `••••${p.api_key.slice(-4)}` : '(kosong)'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        size="sm"
+                        variant={isActive ? 'secondary' : 'outline'}
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => handleApplyProfile(p)}
+                      >
+                        <RefreshCw className="mr-1 h-3 w-3" />
+                        {isActive ? 'Muat ulang' : 'Pakai'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => {
+                          handleApplyProfile(p)
+                          setProfileLabelInput(p.label)
+                        }}
+                        title="Edit label / kredensial"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px] text-destructive hover:text-destructive"
+                        onClick={() => handleDeleteProfile(p)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Save form */}
+          <div className="rounded-xl border bg-muted/20 p-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1">
+                <Label className="text-xs">Label profil</Label>
+                <Input
+                  value={profileLabelInput}
+                  onChange={(e) => setProfileLabelInput(e.target.value)}
+                  placeholder="mis. Groq Pribadi, OpenRouter Kantor"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {activeProfileId && profileDirty === 'overwrite' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOverwriteProfile}
+                  >
+                    <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                    Update profil aktif
+                  </Button>
+                )}
+                <Button size="sm" onClick={handleSaveAsNewProfile}>
+                  <BookmarkPlus className="mr-1 h-3.5 w-3.5" />
+                  Simpan sebagai profil baru
+                </Button>
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              Catatan: API key tersimpan di database lokal aplikasi (SQLite) bersama profil.
+              Pilih nama label tanpa mengandung kata sandi.
+            </p>
           </div>
         </CardContent>
       </Card>

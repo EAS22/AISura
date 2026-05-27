@@ -1,6 +1,7 @@
 export * from './types'
 export * from './providers'
 export * from './aiConfigService'
+export * from './aiProfileService'
 export * from './privacy'
 export * from './aiClient'
 export * from './tools'
