@@ -12,6 +12,7 @@ import { StatusPanel } from './StatusPanel'
 import { useAIChat, type UIMessage } from './useAIChat'
 import { TemplateSuggesterPanel } from './TemplateSuggesterPanel'
 import type { LetterPreviewBridgeApi } from './LetterPreviewBridge'
+import { sanitizeChatInput } from '@/utils/textNormalizer'
 
 interface AIDrawerProps {
   open: boolean
@@ -67,8 +68,8 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
           <Tabs value={mode} onValueChange={(v) => setMode(v as 'chat' | 'template')} className="flex flex-1 min-h-0 flex-col">
             <div className="px-5 pt-3">
               <TabsList className="w-full">
-                <TabsTrigger value="chat" className="flex-1">Buat Surat (Chat)</TabsTrigger>
-                <TabsTrigger value="template" className="flex-1">Saran Placeholder</TabsTrigger>
+                <TabsTrigger value="chat" className="flex-1">Buat Surat</TabsTrigger>
+                <TabsTrigger value="template" className="flex-1">Template</TabsTrigger>
               </TabsList>
             </div>
 
@@ -127,16 +128,37 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
   }, [input])
 
   const submit = async () => {
-    const text = input.trim()
-    if (!text) return
+    const cleaned = sanitizeChatInput(input).trim()
+    if (!cleaned) return
     setInput('')
-    await chat.send(text)
+    await chat.send(cleaned)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submit()
+    }
+  }
+
+  const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    // Sanitize pasted text — strip control chars, soft hyphens, smart quotes, etc.
+    const pasted = e.clipboardData.getData('text/plain')
+    if (!pasted) return
+    const cleaned = sanitizeChatInput(pasted)
+    if (cleaned !== pasted) {
+      e.preventDefault()
+      const target = e.currentTarget
+      const start = target.selectionStart ?? input.length
+      const end = target.selectionEnd ?? input.length
+      const next = input.slice(0, start) + cleaned + input.slice(end)
+      setInput(next)
+      // Restore cursor position after insertion (in next tick).
+      requestAnimationFrame(() => {
+        try {
+          target.selectionStart = target.selectionEnd = start + cleaned.length
+        } catch { /* ignore */ }
+      })
     }
   }
 
@@ -215,6 +237,7 @@ function ChatPanel({ previewBridge }: ChatPanelProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
+            onPaste={onPaste}
             placeholder="Contoh: Buatkan surat keterangan domisili untuk Pak Sena…"
             rows={2}
             className="resize-none leading-6"

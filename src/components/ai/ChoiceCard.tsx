@@ -1,5 +1,6 @@
 import { ChevronRight, FileText, IdCard } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { normalizeOneLine } from '@/utils/textNormalizer'
 import type { AIChoice, AIQuickReplies } from '@/services/ai'
 
 interface ChoiceCardListProps {
@@ -41,16 +42,16 @@ export function ChoiceCardList({ quickReplies, active, onPick }: ChoiceCardListP
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-semibold text-foreground">{c.primary}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{normalizeOneLine(c.primary)}</p>
                   <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-data-number text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
                     #{idx + 1}
                   </span>
                 </div>
                 {c.secondary && (
-                  <p className="truncate font-data-number text-[11px] text-muted-foreground">{c.secondary}</p>
+                  <p className="truncate font-data-number text-[11px] text-muted-foreground">{normalizeOneLine(c.secondary)}</p>
                 )}
                 {c.tertiary && (
-                  <p className="line-clamp-1 text-[11px] text-muted-foreground/85">{c.tertiary}</p>
+                  <p className="line-clamp-1 text-[11px] text-muted-foreground/85">{normalizeOneLine(c.tertiary)}</p>
                 )}
                 {c.badges && c.badges.length > 0 && (
                   <div className="mt-1 flex flex-wrap gap-1">

@@ -13,3 +13,8 @@ ACCESS_TOKENS.md
 .env
 .env.local
 .env.*.local
+
+# Local docx fixtures used by docxCleaner integration tests; they may
+# contain real village data and should not be committed.
+SKU.docx
+*.fixture.docx

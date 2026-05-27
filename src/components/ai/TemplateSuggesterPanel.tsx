@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Upload, Wand2, FileText, Copy, Check, AlertCircle } from 'lucide-react'
+import { Upload, Wand2, FileText, Copy, Check, AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAI } from '@/contexts/AIContext'
 import { TEMPLATE_SUGGEST_SYSTEM_PROMPT, chatCompletion, sanitizeText } from '@/services/ai'
@@ -13,6 +13,8 @@ import {
   DESA_TOKENS,
   PERANGKAT_DESA_ALIASES,
 } from '@/constants/placeholders'
+import { extractCleanText } from '@/utils/docxCleaner'
+import { normalizeText } from '@/utils/textNormalizer'
 
 interface Suggestion {
   originalText: string
@@ -32,11 +34,39 @@ export function TemplateSuggesterPanel() {
   const [filename, setFilename] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warnings, setWarnings] = useState<string[]>([])
   const [result, setResult] = useState<SuggestionResult | null>(null)
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [existingPlaceholders, setExistingPlaceholders] = useState<string[]>([])
+  const [previewOpen, setPreviewOpen] = useState(false)
+
+  const validTokens = useMemo(() => buildValidTokenList(), [])
+
+  /**
+   * Existing placeholders split into 'recognized' (already match a VALID_TOKENS
+   * entry, hence safe to skip) vs 'unknown' (legacy/typo placeholders that
+   * should still be suggested for replacement).
+   */
+  const existingClassification = useMemo(() => {
+    const valid = new Set(validTokens)
+    const recognized: string[] = []
+    const unknown: string[] = []
+    for (const tok of existingPlaceholders) {
+      // strip optional _U/_L/_P modifier when checking validity
+      const baseToken = tok.replace(/_(U|L|P)\}$/, '}')
+      if (valid.has(tok) || valid.has(baseToken)) {
+        recognized.push(tok)
+      } else {
+        unknown.push(tok)
+      }
+    }
+    return { recognized, unknown }
+  }, [existingPlaceholders, validTokens])
 
   const handlePickDocx = async () => {
     setError(null)
+    setWarnings([])
+    setExistingPlaceholders([])
     try {
       const { open } = await import('@tauri-apps/plugin-dialog')
       const { readFile } = await import('@tauri-apps/plugin-fs')
@@ -48,24 +78,10 @@ export function TemplateSuggesterPanel() {
       const bytes = await readFile(filePath as string)
       const fname = (filePath as string).split(/[\\/]/).pop() || 'template.docx'
       setFilename(fname)
-      // Extract plain text from docx via JSZip → word/document.xml
-      const JSZip = (await import('jszip')).default
-      const zip = await JSZip.loadAsync(bytes)
-      const xmlFiles = ['word/document.xml', 'word/header1.xml', 'word/header2.xml', 'word/footer1.xml', 'word/footer2.xml']
-      const textParts: string[] = []
-      for (const name of xmlFiles) {
-        const f = zip.file(name)
-        if (!f) continue
-        const xml = await f.async('text')
-        const re = /<w:t[^>]*>([\s\S]*?)<\/w:t>/g
-        let m: RegExpExecArray | null
-        while ((m = re.exec(xml)) !== null) {
-          textParts.push(m[1])
-        }
-        textParts.push('\n')
-      }
-      const extracted = textParts.join(' ').replace(/\s+/g, ' ').trim()
-      setText(extracted)
+      const cleaned = await extractCleanText(bytes)
+      setText(cleaned.plainText)
+      setExistingPlaceholders(cleaned.existingPlaceholders)
+      setWarnings(cleaned.warnings)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal membaca file')
     }
@@ -76,7 +92,10 @@ export function TemplateSuggesterPanel() {
       setError('AI belum dikonfigurasi.')
       return
     }
-    const sanitized = sanitizeText(text.trim())
+    // Sanitasi terakhir sebelum kirim — text sudah di-normalize saat extract,
+    // tapi kalau user paste manual ke textarea kita sanitize lagi.
+    const cleaned = normalizeText(text.trim())
+    const sanitized = sanitizeText(cleaned)
     if (sanitized.length < 30) {
       setError('Teks template terlalu pendek. Upload docx atau paste teks ≥30 karakter.')
       return
@@ -85,8 +104,7 @@ export function TemplateSuggesterPanel() {
     setError(null)
     setResult(null)
     try {
-      const validTokens = buildValidTokenList()
-      const userPrompt = `VALID_TOKENS (JSON):\n${JSON.stringify(validTokens)}\n\nTEMPLATE_TEXT (sudah di-sanitize NIK):\n"""\n${sanitized}\n"""\n\nKembalikan JSON sesuai schema.`
+      const userPrompt = buildUserPrompt(validTokens, sanitized, existingClassification.recognized, existingClassification.unknown)
 
       const resp = await chatCompletion(ai.credentials, {
         messages: [
@@ -103,7 +121,10 @@ export function TemplateSuggesterPanel() {
         setError('Respons AI bukan JSON yang valid. Coba ulangi.')
         return
       }
-      setResult(parsed)
+      // Filter saran yang token-nya sudah ada di template (kecuali untuk
+      // saran koreksi terhadap unknown placeholder).
+      const filtered = filterRedundantSuggestions(parsed.suggestions, existingClassification)
+      setResult({ suggestions: filtered, notes: parsed.notes })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Gagal memanggil AI')
     } finally {
@@ -127,8 +148,8 @@ export function TemplateSuggesterPanel() {
         <div className="space-y-2">
           <p className="text-sm font-medium">Sumber template</p>
           <p className="text-xs text-muted-foreground">
-            Upload file <span className="font-medium">.docx</span> atau paste teks template surat. AI akan menyarankan
-            placeholder yang cocok.
+            Upload file <span className="font-medium">.docx</span> atau paste teks template surat. Aplikasi otomatis
+            membersihkan teks dari styling/whitespace asing sebelum dikirim ke AI.
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={handlePickDocx}>
@@ -141,16 +162,64 @@ export function TemplateSuggesterPanel() {
                 {filename}
               </Badge>
             )}
+            {filename && text && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => setPreviewOpen((v) => !v)}
+              >
+                {previewOpen ? <EyeOff className="mr-1 h-3 w-3" /> : <Eye className="mr-1 h-3 w-3" />}
+                {previewOpen ? 'Sembunyikan teks bersih' : 'Lihat teks bersih'}
+              </Button>
+            )}
           </div>
+
+          {/* Existing placeholders summary */}
+          {existingPlaceholders.length > 0 && (
+            <div className="rounded-md border bg-muted/30 p-2.5 text-[11px]">
+              <p className="font-medium text-foreground">{existingPlaceholders.length} placeholder sudah ada di template ini.</p>
+              {existingClassification.recognized.length > 0 && (
+                <p className="mt-1 text-muted-foreground">
+                  <span className="font-medium text-emerald-700 dark:text-emerald-300">{existingClassification.recognized.length} dikenali AISura</span> — tidak akan diduplikasi.
+                </p>
+              )}
+              {existingClassification.unknown.length > 0 && (
+                <p className="mt-1 text-muted-foreground">
+                  <span className="font-medium text-amber-700 dark:text-amber-300">{existingClassification.unknown.length} format lama</span> — AI akan menyarankan koreksi: {existingClassification.unknown.slice(0, 5).join(', ')}{existingClassification.unknown.length > 5 ? `, +${existingClassification.unknown.length - 5} lainnya` : ''}
+                </p>
+              )}
+            </div>
+          )}
+
+          {warnings.length > 0 && (
+            <div className="rounded-md border border-amber-200/70 bg-amber-50/60 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+              <p className="font-medium">Catatan parsing:</p>
+              <ul className="mt-1 list-inside list-disc">
+                {warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Atau paste teks template surat di sini…"
-            className="min-h-32 font-data-number text-xs"
+            className={cn(
+              'min-h-32 font-data-number text-xs',
+              !previewOpen && filename && 'sr-only',
+            )}
           />
+          {!previewOpen && filename && (
+            <p className="text-[10px] text-muted-foreground">
+              Teks dari file <span className="font-medium text-foreground">{filename}</span> sudah di-load (klik "Lihat teks bersih" untuk preview).
+            </p>
+          )}
         </div>
 
-        <Button size="sm" onClick={handleSuggest} disabled={busy} className="w-full">
+        <Button size="sm" onClick={handleSuggest} disabled={busy || !text.trim()} className="w-full">
           <Wand2 className={cn('mr-1 h-3.5 w-3.5', busy && 'animate-pulse')} />
           {busy ? 'Menganalisa…' : 'Sarankan Placeholder'}
         </Button>
@@ -169,7 +238,7 @@ export function TemplateSuggesterPanel() {
             )}
             {result.suggestions.length === 0 ? (
               <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
-                AI tidak menemukan kandidat placeholder pada teks ini.
+                AI tidak menemukan kandidat placeholder yang perlu ditambahkan.
               </div>
             ) : (
               <div className="space-y-2">
@@ -250,6 +319,49 @@ function buildValidTokenList(): string[] {
   for (const f of NOMOR_SURAT_FIELDS) tokens.add(`{${f}}`)
   tokens.add('{NOMOR_SURAT}')
   return Array.from(tokens).sort()
+}
+
+function buildUserPrompt(
+  validTokens: string[],
+  templateText: string,
+  recognized: string[],
+  unknown: string[],
+): string {
+  const parts = [`VALID_TOKENS:\n${JSON.stringify(validTokens)}`]
+  if (recognized.length > 0) {
+    parts.push(`EXISTING_PLACEHOLDERS_OK (sudah dikenali, JANGAN duplikasi):\n${JSON.stringify(recognized)}`)
+  }
+  if (unknown.length > 0) {
+    parts.push(
+      `EXISTING_PLACEHOLDERS_UNKNOWN (format tidak dikenal, sarankan koreksi ke VALID_TOKENS yang sesuai):\n${JSON.stringify(unknown)}`,
+    )
+  }
+  parts.push(`TEMPLATE_TEXT (sudah dibersihkan dari styling, NIK di-mask):\n"""\n${templateText}\n"""`)
+  parts.push('Kembalikan JSON sesuai schema. Maksimal 30 saran. Hindari saran yang akan menduplikasi EXISTING_PLACEHOLDERS_OK.')
+  return parts.join('\n\n')
+}
+
+function filterRedundantSuggestions(
+  suggestions: Suggestion[],
+  classification: { recognized: string[]; unknown: string[] },
+): Suggestion[] {
+  const recognizedBase = new Set<string>()
+  for (const tok of classification.recognized) {
+    // store both with and without modifier suffix for matching
+    recognizedBase.add(tok)
+    recognizedBase.add(tok.replace(/_(U|L|P)\}$/, '}'))
+  }
+  return suggestions.filter((s) => {
+    const tokBase = s.suggestedToken.replace(/_(U|L|P)\}$/, '}')
+    if (recognizedBase.has(s.suggestedToken)) return false
+    if (recognizedBase.has(tokBase)) {
+      // Allowed only if originalText explicitly references one of the unknown tokens
+      // (i.e. AI is mapping a legacy {NAMA_WARGA} → {W1_NAMA}).
+      const refersToUnknown = classification.unknown.some((u) => s.originalText.includes(u))
+      return refersToUnknown
+    }
+    return true
+  })
 }
 
 function parseSuggestionJson(text: string): SuggestionResult | null {

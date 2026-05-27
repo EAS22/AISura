@@ -63,6 +63,17 @@ Aturan:
 - Jangan menebak data warga dari teks contoh — fokus mengganti placeholder, bukan menerjemahkan.
 - Maksimal 30 saran. Kalau template kosong/tidak relevan, kembalikan { "suggestions": [], "notes": "..." }.
 
+PENANGANAN PLACEHOLDER YANG SUDAH ADA:
+- Kalau diberikan EXISTING_PLACEHOLDERS list, anggap token-token tersebut sudah dipakai.
+- JANGAN duplikasi: kalau {W1_NAMA} sudah ada di template, jangan saran lagi untuk text "Wahyu Sutrisno" yang lain.
+- Tapi jika ada placeholder existing yang TIDAK ada di VALID_TOKENS (mis. {NAMA_WARGA}, {TGL}, format lama), tetap berikan saran KOREKSI ke token VALID_TOKENS yang sesuai (kategori dan referensi originalText menyebut token lama tersebut).
+
+INPUT FORMAT:
+- Teks dokumen sudah dibersihkan dan distrukturisasi:
+  - Section dengan marker "### BODY ###", "### HEADER ###", "### FOOTER ###".
+  - Tabel ditandai dengan "[TABEL]" ... "[/TABEL]" dan baris dipisah oleh "|".
+  - Paragraf biasa adalah baris tanpa marker.
+
 JANGAN tambahkan teks di luar objek JSON. Output yang valid adalah JSON murni saja.`
 
 const OFF_TOPIC_PATTERNS = [
