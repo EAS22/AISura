@@ -256,10 +256,19 @@ export function TemplateSuggesterPanel() {
       <div className="flex-1 min-h-0 space-y-4 overflow-y-auto px-5 py-4">
         <div className="space-y-2">
           <p className="text-sm font-medium">Sumber template</p>
-          <p className="text-xs text-muted-foreground">
-            Upload file <span className="font-medium">.docx</span> atau paste teks template surat. Aplikasi otomatis
-            membersihkan teks dari styling/whitespace asing sebelum dikirim ke AI.
-          </p>
+          <div className="flex items-start gap-2 rounded-md border border-amber-200/70 bg-amber-50/60 p-2.5 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <div className="space-y-1 leading-relaxed">
+              <p>
+                <span className="font-medium">Cek ulang hasil saran sebelum dipakai.</span> Akurasi saran placeholder
+                tergantung pada kemampuan dan wawasan model AI yang dipilih — saran bisa meleset atau kurang lengkap.
+              </p>
+              <p>
+                Waktu analisa juga ditentukan oleh latency dan kecepatan model AI. Model yang lebih besar biasanya lebih
+                akurat tapi lebih lambat; model ringan lebih cepat tapi rawan salah token.
+              </p>
+            </div>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={handlePickDocx}>
               <Upload className="mr-1 h-3.5 w-3.5" />
