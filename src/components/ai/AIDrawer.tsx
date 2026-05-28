@@ -42,7 +42,7 @@ export function AIDrawer({ open, onOpenChange, defaultMode }: AIDrawerProps) {
           </SheetTitle>
           <SheetDescription>
             {ai.credentials
-              ? `Provider aktif. Model: ${ai.credentials.model}.`
+              ? 'AISura Assistant siap membantu pembuatan surat desa.'
               : 'AI belum aktif. Buka Pengaturan > AI untuk mengaktifkan.'}
           </SheetDescription>
         </SheetHeader>
