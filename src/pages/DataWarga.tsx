@@ -5,11 +5,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Upload, Download, Trash2, Search, Pencil, Plus, IdCard } from 'lucide-react'
+import { Upload, Download, Trash2, Search, Pencil, Plus, IdCard, Archive } from 'lucide-react'
 import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, addWarga, getWargaCount } from '@/services/wargaService'
 import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
 import { useConfirm } from '@/hooks/use-confirm'
+import { WargaBackupRestoreDialog } from '@/components/warga/WargaBackupRestoreDialog'
 import type { Warga } from '@/types'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
@@ -28,6 +29,7 @@ export function DataWarga() {
   const [addData, setAddData] = useState<Partial<Warga>>({})
   const [detailModal, setDetailModal] = useState(false)
   const [detailData, setDetailData] = useState<Warga | null>(null)
+  const [manajemenOpen, setManajemenOpen] = useState(false)
   const perPage = 50
 
   useEffect(() => { loadData() }, [])
@@ -134,6 +136,7 @@ export function DataWarga() {
             <Button size="sm" variant="outline" onClick={handleDownloadTemplate}><Download className="mr-1 h-3.5 w-3.5" />Template</Button>
             <Button size="sm" variant="outline" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
             <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
+            <Button size="sm" variant="outline" onClick={() => setManajemenOpen(true)}><Archive className="mr-1 h-3.5 w-3.5" />Manajemen</Button>
             {count > 0 && <Button size="sm" variant="destructive" onClick={handleDeleteAll}><Trash2 className="mr-1 h-3.5 w-3.5" />Hapus Semua</Button>}
           </div>
         </div>
@@ -250,6 +253,12 @@ export function DataWarga() {
       </Dialog>
 
       <ConfirmDialog />
+
+      <WargaBackupRestoreDialog
+        open={manajemenOpen}
+        onOpenChange={setManajemenOpen}
+        onRestored={loadData}
+      />
     </div>
   )
 }
