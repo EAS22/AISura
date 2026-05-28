@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Upload, Download, Trash2, Search, Pencil, Plus, IdCard, Archive } from 'lucide-react'
-import { getAllWarga, importWargaBatch, deleteAllWarga, deleteWarga, updateWarga, addWarga, getWargaCount } from '@/services/wargaService'
+import { getAllWarga, importWargaBatch, deleteWarga, updateWarga, addWarga, getWargaCount } from '@/services/wargaService'
 import { parseExcelOrCsv } from '@/utils/excelImporter'
 import { generateTemplateWargaExcel } from '@/utils/excelExporter'
 import { useConfirm } from '@/hooks/use-confirm'
@@ -75,12 +75,6 @@ export function DataWarga() {
     } catch (err) { console.error(err) }
   }
 
-  const handleDeleteAll = async () => {
-    const ok = await confirm({ title: 'Hapus Semua Data Warga?', description: 'Semua data warga akan dihapus permanen.' })
-    if (!ok) return
-    await deleteAllWarga(); await loadData()
-  }
-
   const handleEdit = (w: Warga) => {
     setEditData({ ...w })
     setEditModal(true)
@@ -137,7 +131,6 @@ export function DataWarga() {
             <Button size="sm" variant="outline" onClick={handleImport}><Upload className="mr-1 h-3.5 w-3.5" />Import</Button>
             <Button size="sm" className="rounded-xl bg-blue-600 hover:bg-blue-700" onClick={() => setAddModal(true)}><Plus className="mr-1 h-3.5 w-3.5" />Tambah Warga</Button>
             <Button size="sm" variant="outline" onClick={() => setManajemenOpen(true)}><Archive className="mr-1 h-3.5 w-3.5" />Manajemen</Button>
-            {count > 0 && <Button size="sm" variant="destructive" onClick={handleDeleteAll}><Trash2 className="mr-1 h-3.5 w-3.5" />Hapus Semua</Button>}
           </div>
         </div>
         <div className="relative max-w-sm mt-3">
@@ -258,6 +251,7 @@ export function DataWarga() {
         open={manajemenOpen}
         onOpenChange={setManajemenOpen}
         onRestored={loadData}
+        onCleared={loadData}
       />
     </div>
   )

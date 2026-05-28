@@ -12,9 +12,11 @@ import {
   PackageCheck,
   ShieldAlert,
   AlertCircle,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { useConfirm } from '@/hooks/use-confirm'
 import {
   exportWargaBackup,
   inspectWargaBackup,
@@ -22,6 +24,7 @@ import {
   type ConflictStrategy,
   type ImportSummary,
 } from '@/services/wargaBackupService'
+import { deleteAllWarga, getWargaCount } from '@/services/wargaService'
 
 interface InspectResult {
   count: number
@@ -37,9 +40,13 @@ interface WargaBackupRestoreDialogProps {
   onOpenChange: (open: boolean) => void
   /** Callback after a successful restore so the parent page can re-fetch the list. */
   onRestored?: () => void
+  /** Callback after the destructive "hapus semua" action so the parent page
+   *  can re-fetch (and update the count badge). */
+  onCleared?: () => void
 }
 
-export function WargaBackupRestoreDialog({ open, onOpenChange, onRestored }: WargaBackupRestoreDialogProps) {
+export function WargaBackupRestoreDialog({ open, onOpenChange, onRestored, onCleared }: WargaBackupRestoreDialogProps) {
+  const { confirm, ConfirmDialog } = useConfirm()
   const [exporting, setExporting] = useState(false)
 
   const [picking, setPicking] = useState(false)
@@ -49,6 +56,9 @@ export function WargaBackupRestoreDialog({ open, onOpenChange, onRestored }: War
   const [importing, setImporting] = useState(false)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Delete-all
+  const [deleting, setDeleting] = useState(false)
 
   const reset = () => {
     setInspect(null)
@@ -167,6 +177,47 @@ export function WargaBackupRestoreDialog({ open, onOpenChange, onRestored }: War
       toast.error('Gagal restore', { description: message })
     } finally {
       setImporting(false)
+    }
+  }
+
+  // -----------------------------------------------------------------
+  // Delete all
+  // -----------------------------------------------------------------
+
+  const handleDeleteAll = async () => {
+    let count = 0
+    try {
+      count = await getWargaCount()
+    } catch {
+      /* ignore — confirm dialog still works without exact count */
+    }
+    if (count === 0) {
+      toast.info('Tidak ada data warga untuk dihapus')
+      return
+    }
+    const proceed = await confirm({
+      title: 'Hapus semua data warga?',
+      description:
+        `Aksi ini menghapus ${count} data warga di aplikasi secara permanen. ` +
+        'Riwayat surat tetap tersimpan, tapi data pemohon di riwayat akan ' +
+        'jadi referensi tanpa sumber. Sarannya: backup dulu sebelum melanjutkan.',
+      confirmLabel: 'Hapus Semua',
+      variant: 'destructive',
+    })
+    if (!proceed) return
+    setDeleting(true)
+    try {
+      await deleteAllWarga()
+      toast.success(`${count} data warga dihapus`, {
+        description: 'Database warga sudah dibersihkan.',
+      })
+      onCleared?.()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[WargaBackup] delete all failed', err)
+      toast.error('Gagal menghapus semua data', { description: message })
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -336,7 +387,35 @@ export function WargaBackupRestoreDialog({ open, onOpenChange, onRestored }: War
               </div>
             </div>
           </section>
+
+          {/* Danger zone: hapus semua data warga */}
+          <section className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                <ShieldAlert className="h-4 w-4" />
+              </div>
+              <div className="flex-1 space-y-2">
+                <div>
+                  <p className="text-sm font-semibold">Zona Berbahaya</p>
+                  <p className="text-xs text-muted-foreground">
+                    Hapus seluruh data warga di aplikasi sekaligus. Aksi ini tidak bisa di-undo —
+                    backup dulu sebelum melanjutkan.
+                  </p>
+                </div>
+                <ul className="list-inside list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                  <li>Riwayat surat tetap tersimpan, tapi referensi pemohon di sana akan kehilangan sumbernya.</li>
+                  <li>Tidak menyentuh data desa, perangkat desa, template, atau pengaturan lain.</li>
+                </ul>
+                <Button variant="destructive" size="sm" onClick={handleDeleteAll} disabled={deleting}>
+                  <Trash2 className="mr-1 h-3.5 w-3.5" />
+                  {deleting ? 'Menghapus...' : 'Hapus Semua Data Warga'}
+                </Button>
+              </div>
+            </div>
+          </section>
         </div>
+
+        <ConfirmDialog />
       </DialogContent>
     </Dialog>
   )
