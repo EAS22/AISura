@@ -24,6 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/buat-surat': 'Buat Surat',
   '/template-surat': 'Template Surat',
   '/placeholder': 'Placeholder',
+  '/template/backup-restore': 'Backup & Restore Template',
   '/data-warga': 'Data Warga',
   '/riwayat-surat': 'Riwayat Surat',
   '/pengaturan/data-desa': 'Data Desa',
@@ -36,6 +37,7 @@ const PAGE_TITLES: Record<string, string> = {
 const BREADCRUMBS: Record<string, string[]> = {
   '/template-surat': ['Template', 'Template Surat'],
   '/placeholder': ['Template', 'Placeholder'],
+  '/template/backup-restore': ['Template', 'Backup & Restore'],
   '/pengaturan/data-desa': ['Pengaturan', 'Data Desa'],
   '/pengaturan/nomor-surat': ['Pengaturan', 'Nomor Surat'],
   '/pengaturan/aplikasi': ['Pengaturan', 'Aplikasi'],

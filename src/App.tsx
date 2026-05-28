@@ -19,6 +19,7 @@ import { Dashboard } from '@/pages/Dashboard'
 import { BuatSurat } from '@/pages/BuatSurat'
 import { TemplateSuratPage } from '@/pages/TemplateSurat'
 import { PlaceholderPage } from '@/pages/Placeholder'
+import { TemplateBackupRestorePage } from '@/pages/template/BackupRestore'
 import { DataWarga } from '@/pages/DataWarga'
 import { RiwayatSuratPage } from '@/pages/RiwayatSurat'
 import { DataDesaPage } from '@/pages/pengaturan/DataDesa'
@@ -90,6 +91,7 @@ function App() {
         case '/buat-surat': return <BuatSurat />
         case '/template-surat': return <TemplateSuratPage />
         case '/placeholder': return <PlaceholderPage />
+        case '/template/backup-restore': return <TemplateBackupRestorePage />
         case '/data-warga': return <DataWarga />
         case '/riwayat-surat': return <RiwayatSuratPage />
         case '/pengaturan/data-desa': return <DataDesaPage />
