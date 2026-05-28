@@ -24,7 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/buat-surat': 'Buat Surat',
   '/template-surat': 'Template Surat',
   '/placeholder': 'Placeholder',
-  '/template/backup-restore': 'Backup & Restore Template',
+  '/template/backup-restore': 'Manajemen Template',
   '/data-warga': 'Data Warga',
   '/riwayat-surat': 'Riwayat Surat',
   '/pengaturan/data-desa': 'Data Desa',
@@ -34,10 +34,30 @@ const PAGE_TITLES: Record<string, string> = {
   '/profil': 'Profil',
 }
 
+// Extra search keywords per page so the header search bar finds a page
+// even when the user types a synonym instead of the exact title.
+// For example, the "Manajemen Template" page covers backup, restore,
+// import, export, and delete-all-template flows — searching any of those
+// terms should surface it.
+const PAGE_KEYWORDS: Record<string, string[]> = {
+  '/template/backup-restore': [
+    'backup',
+    'restore',
+    'import',
+    'export',
+    'hapus semua template',
+    'reset template',
+    'manajemen template',
+  ],
+  '/pengaturan/aplikasi': ['update', 'backup aplikasi', 'restore aplikasi', 'gambar login'],
+  '/pengaturan/ai': ['ai', 'asisten', 'provider', 'api key'],
+  '/pengaturan/nomor-surat': ['nomor', 'counter'],
+}
+
 const BREADCRUMBS: Record<string, string[]> = {
   '/template-surat': ['Template', 'Template Surat'],
   '/placeholder': ['Template', 'Placeholder'],
-  '/template/backup-restore': ['Template', 'Backup & Restore'],
+  '/template/backup-restore': ['Template', 'Manajemen'],
   '/pengaturan/data-desa': ['Pengaturan', 'Data Desa'],
   '/pengaturan/nomor-surat': ['Pengaturan', 'Nomor Surat'],
   '/pengaturan/aplikasi': ['Pengaturan', 'Aplikasi'],
@@ -81,9 +101,17 @@ export function HeaderContent({ onLogout }: HeaderContentProps) {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const allPages = Object.entries(PAGE_TITLES).map(([path, title]) => ({ path, title }))
+  const allPages = Object.entries(PAGE_TITLES).map(([path, title]) => ({
+    path,
+    title,
+    keywords: PAGE_KEYWORDS[path] ?? [],
+  }))
   const filteredPages = searchQuery.length > 0
-    ? allPages.filter(p => p.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? allPages.filter((p) => {
+        const q = searchQuery.toLowerCase()
+        if (p.title.toLowerCase().includes(q)) return true
+        return p.keywords.some((k) => k.toLowerCase().includes(q))
+      })
     : []
 
   const handleSearchSelect = (path: string) => {

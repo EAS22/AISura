@@ -137,6 +137,30 @@ export async function setTemplateFavorite(id: string, favorite: boolean): Promis
 }
 
 /**
+ * Hard-delete every template + its physical .docx file. Riwayat surat rows
+ * that reference the deleted template are NOT removed — their template_id
+ * column is set to NULL so the history stays intact (mirroring the
+ * single-template deleteTemplate() behavior).
+ *
+ * Returns the count of deleted rows so the UI can confirm to the user.
+ */
+export async function deleteAllTemplates(): Promise<number> {
+  const all = await getAllTemplates();
+  for (const t of all) {
+    try {
+      await remove(t.file_path, { baseDir: BaseDirectory.AppConfig });
+    } catch {
+      /* ignore — best-effort delete on disk; row deletion below is the
+         source of truth */
+    }
+  }
+  await execute('UPDATE riwayat_surat SET template_id = NULL', []);
+  await execute('DELETE FROM template_labels', []);
+  await execute('DELETE FROM templates', []);
+  return all.length;
+}
+
+/**
  * Re-scan placeholders inside a template's stored .docx file and overwrite
  * the cached placeholders + warga_count columns.
  *

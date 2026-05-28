@@ -12,10 +12,12 @@ import {
   PackageCheck,
   AlertCircle,
   ShieldAlert,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { crmShell } from '@/lib/aisura-crm-ui'
+import { useConfirm } from '@/hooks/use-confirm'
 import {
   exportTemplatesBackup,
   importTemplatesBackup,
@@ -38,6 +40,7 @@ interface InspectResult {
 }
 
 export function TemplateBackupRestorePage() {
+  const { confirm, ConfirmDialog } = useConfirm()
   // Export state
   const [exporting, setExporting] = useState(false)
 
@@ -49,6 +52,9 @@ export function TemplateBackupRestorePage() {
   const [importing, setImporting] = useState(false)
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Delete-all state
+  const [deletingAll, setDeletingAll] = useState(false)
 
   // -----------------------------------------------------------------
   // Export flow
@@ -168,14 +174,49 @@ export function TemplateBackupRestorePage() {
     setConflictStrategy('skip')
   }
 
+  // -----------------------------------------------------------------
+  // Hapus semua template
+  // -----------------------------------------------------------------
+
+  const handleDeleteAll = async () => {
+    const proceed = await confirm({
+      title: 'Hapus semua template surat?',
+      description:
+        'Aksi ini menghapus seluruh template surat di aplikasi (file DOCX + metadata). ' +
+        'Riwayat surat tetap tersimpan tapi tidak bisa di-generate ulang sampai template-nya di-restore. ' +
+        'Sarannya: backup dulu sebelum melanjutkan.',
+      confirmLabel: 'Hapus Semua',
+      variant: 'destructive',
+    })
+    if (!proceed) return
+    setDeletingAll(true)
+    try {
+      const { deleteAllTemplates } = await import('@/services/templateService')
+      const count = await deleteAllTemplates()
+      if (count === 0) {
+        toast.info('Tidak ada template untuk dihapus')
+      } else {
+        toast.success(`${count} template dihapus`, {
+          description: 'Semua file DOCX + metadata sudah dibersihkan.',
+        })
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error('[BackupRestore] delete all failed', err)
+      toast.error('Gagal menghapus semua template', { description: message })
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
   return (
     <div className={crmShell.page}>
       <div>
         <p className={crmShell.eyebrow}>Template tools</p>
-        <h1 className={crmShell.title}>Backup & Restore Template</h1>
+        <h1 className={crmShell.title}>Manajemen Template</h1>
         <p className={crmShell.subtitle}>
-          Ekspor semua template surat ke satu file ZIP untuk dipindahkan ke device lain, atau
-          pulihkan dari backup tanpa menghapus template yang sudah ada.
+          Backup semua template surat ke satu file ZIP, restore dari backup, atau bersihkan
+          seluruh library template sekaligus.
         </p>
       </div>
 
@@ -344,6 +385,41 @@ export function TemplateBackupRestorePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Danger zone */}
+      <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <CardTitle className="text-sm">Zona Berbahaya</CardTitle>
+              <CardDescription>
+                Hapus semua template surat sekaligus. Tidak bisa di-undo — backup dulu sebelum melanjutkan.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <ul className="list-inside list-disc space-y-1 text-xs text-muted-foreground">
+            <li>File <span className="font-mono text-foreground">.docx</span> setiap template ikut dihapus dari penyimpanan aplikasi.</li>
+            <li>Riwayat surat tetap aman — kolom <span className="font-mono text-foreground">template_id</span> di-set NULL, surat lama tidak bisa di-generate ulang sampai template-nya di-restore.</li>
+            <li>Counter nomor surat tidak ikut di-reset.</li>
+          </ul>
+          <Button
+            variant="destructive"
+            onClick={handleDeleteAll}
+            disabled={deletingAll}
+            className="w-full sm:w-auto"
+          >
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            {deletingAll ? 'Menghapus...' : 'Hapus Semua Template Surat'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog />
     </div>
   )
 }

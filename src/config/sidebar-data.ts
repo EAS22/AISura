@@ -32,7 +32,7 @@ export const sidebarData = {
           items: [
             { title: 'Template Surat', url: '/template-surat', icon: FileText },
             { title: 'Placeholder', url: '/placeholder', icon: Tags },
-            { title: 'Backup & Restore', url: '/template/backup-restore', icon: Archive },
+            { title: 'Manajemen', url: '/template/backup-restore', icon: Archive },
           ],
         },
         { title: 'Data Warga', url: '/data-warga', icon: Users },
