@@ -18,3 +18,9 @@ ACCESS_TOKENS.md
 # contain real village data and should not be committed.
 SKU.docx
 *.fixture.docx
+
+# Local backup test outputs — may contain real warga / template data,
+# never commit. App emits these next to the working directory when the
+# user picks the default save location.
+aisura-warga-backup-*.json
+aisura-templates-backup-*.zip
